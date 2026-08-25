@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/table';
 import ReceivePaymentDialog from '@/components/receive-payment-dialog';
 import { getCustomers } from '@/lib/actions';
+import { useAccountAccess } from '@/hooks/use-account-access';
 import { useAuth } from '@/hooks/use-auth';
 import type { Customer } from '@/lib/types';
 
@@ -20,6 +21,7 @@ import type { Customer } from '@/lib/types';
  */
 export function DuesPage() {
   const { user } = useAuth();
+  const { canWrite } = useAccountAccess();
   const [customers, setCustomers] = React.useState<Customer[] | null>(null);
   const [totalDue, setTotalDue] = React.useState(0);
 
@@ -88,7 +90,7 @@ export function DuesPage() {
                   <TableCell className="text-right">
                     {user && (
                       <ReceivePaymentDialog customerId={c.id} userId={user.uid} onPaymentReceived={load}>
-                        <Button variant="outline" size="sm">
+                        <Button variant="outline" size="sm" disabled={!canWrite}>
                           <HandCoins className="mr-1 h-3.5 w-3.5" /> Collect
                         </Button>
                       </ReceivePaymentDialog>

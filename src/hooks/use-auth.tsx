@@ -4,8 +4,14 @@
 import { initializeNewUser } from '@/lib/db/database';
 import { auth, db } from '@/lib/firebase';
 import type { AuthUser } from '@/lib/types';
-import { signOut as firebaseSignOut, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, type User } from 'firebase/auth';
-import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import {
+  signOut as firebaseSignOut,
+  GoogleAuthProvider,
+  onAuthStateChanged,
+  signInWithPopup,
+  type User,
+} from 'firebase/auth';
+import { doc, getDoc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
 import * as React from 'react';
 
 interface AuthContextType {
@@ -17,6 +23,16 @@ interface AuthContextType {
 }
 
 const AuthContext = React.createContext<AuthContextType | null>(null);
+
+// Applies safe defaults so consumers never deal with undefined mode/status,
+// including accounts created before these fields existed.
+function normalizeAuthUser(data: Partial<AuthUser>): AuthUser {
+  return {
+    ...data,
+    appMode: data.appMode ?? 'normal',
+    accountStatus: data.accountStatus ?? 'active',
+  } as AuthUser;
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = React.useState<User | null>(null);
@@ -30,41 +46,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      if (currentUser) {
-        if (!db) return;
-        const userRef = doc(db, 'users', currentUser.uid);
-        const userSnap = await getDoc(userRef);
+    let unsubscribeUserDoc: (() => void) | null = null;
 
-        if (userSnap.exists()) {
-          const userData = userSnap.data() as AuthUser;
-          setAuthUser(userData);
-          setUser(currentUser);
-        } else {
-          // New user, create their document and initialize their data
-          await setDoc(userRef, {
-            uid: currentUser.uid,
-            email: currentUser.email,
-            displayName: currentUser.displayName,
-            photoURL: currentUser.photoURL,
-            createdAt: serverTimestamp(),
-            onboardingComplete: false,
-          });
-          await initializeNewUser(currentUser.uid);
-          const newUserSnap = await getDoc(userRef);
-          if (newUserSnap.exists()) {
-            setAuthUser(newUserSnap.data() as AuthUser);
-          }
-          setUser(currentUser);
-        }
-      } else {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      unsubscribeUserDoc?.();
+      unsubscribeUserDoc = null;
+
+      if (!currentUser || !db) {
         setUser(null);
         setAuthUser(null);
+        setLoading(false);
+        return;
       }
+
+      const userRef = doc(db, 'users', currentUser.uid);
+      const userSnap = await getDoc(userRef);
+
+      if (!userSnap.exists()) {
+        // New user, create their document and initialize their data
+        await setDoc(userRef, {
+          uid: currentUser.uid,
+          email: currentUser.email,
+          displayName: currentUser.displayName,
+          photoURL: currentUser.photoURL,
+          createdAt: serverTimestamp(),
+          onboardingComplete: false,
+        });
+        await initializeNewUser(currentUser.uid);
+      }
+
+      // Live subscription keeps mode and account status fresh, so an admin
+      // suspend or mode change is reflected without a re-login.
+      unsubscribeUserDoc = onSnapshot(userRef, (docSnap) => {
+        if (docSnap.exists()) {
+          setAuthUser(normalizeAuthUser(docSnap.data()));
+        }
+      });
+
+      setUser(currentUser);
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      unsubscribeUserDoc?.();
+    };
   }, []);
 
   const signInWithGoogle = async () => {
@@ -75,7 +101,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       await signInWithPopup(auth, provider);
     } catch (error) {
-      console.error("Error during sign-in:", error);
+      console.error('Error during sign-in:', error);
       throw error;
     }
   };
@@ -87,7 +113,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       await firebaseSignOut(auth);
     } catch (error) {
-      console.error("Error during sign-out:", error);
+      console.error('Error during sign-out:', error);
     }
   };
 

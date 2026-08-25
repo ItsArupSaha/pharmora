@@ -11,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useAuth } from '@/hooks/use-auth';
 import type { Category } from '@/lib/types';
 
 interface ItemManagementControlsProps {
@@ -38,6 +39,8 @@ export function ItemManagementControls({
   sortBy,
   setSortBy,
 }: ItemManagementControlsProps) {
+  // Stock-management mode hides generic-group sorting along with its column.
+  const isStockMode = useAuth().authUser?.appMode === 'stock';
   return (
     <>
       <div className="flex flex-col md:flex-row gap-3 mb-6">
@@ -114,7 +117,7 @@ export function ItemManagementControls({
               <SelectItem value="title-desc">Title: Z to A</SelectItem>
               <SelectItem value="stock-asc">Stock: Low to High</SelectItem>
               <SelectItem value="stock-desc">Stock: High to Low</SelectItem>
-              <SelectItem value="group-asc">Medicine Group: A-Z</SelectItem>
+              {!isStockMode && <SelectItem value="group-asc">Medicine Group: A-Z</SelectItem>}
               <SelectItem value="company-asc">Company Name: A-Z</SelectItem>
               <SelectItem value="expiry-asc">Expiry Date: Soonest</SelectItem>
             </SelectContent>
@@ -124,14 +127,16 @@ export function ItemManagementControls({
 
       <div className="flex flex-wrap items-center gap-2 mb-4 text-sm bg-muted/20 p-2.5 rounded-lg border border-dashed">
         <span className="text-muted-foreground font-medium mr-1">Quick Sort Medicine:</span>
-        <Button
-          variant={sortBy === 'group-asc' ? 'default' : 'outline'}
-          size="sm"
-          className="rounded-full h-8 px-3.5 text-xs font-semibold"
-          onClick={() => setSortBy(sortBy === 'group-asc' ? 'title-asc' : 'group-asc')}
-        >
-          By Group (Generic)
-        </Button>
+        {!isStockMode && (
+          <Button
+            variant={sortBy === 'group-asc' ? 'default' : 'outline'}
+            size="sm"
+            className="rounded-full h-8 px-3.5 text-xs font-semibold"
+            onClick={() => setSortBy(sortBy === 'group-asc' ? 'title-asc' : 'group-asc')}
+          >
+            By Group (Generic)
+          </Button>
+        )}
         <Button
           variant={sortBy === 'company-asc' ? 'default' : 'outline'}
           size="sm"

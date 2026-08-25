@@ -103,9 +103,9 @@ export function RecordPurchaseDialog({
                 <PlusCircle className="mr-2 h-4 w-4" /> Add Item
               </Button>
 
-              <Separator />
-              <PurchasePaymentSection />
-            </div>
+                <Separator />
+                <PurchasePaymentSection />
+              </div>
 
             <div className="border-t p-6 bg-background space-y-4 shrink-0">
               <PurchaseSummarySection />

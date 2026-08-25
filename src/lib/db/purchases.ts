@@ -5,12 +5,17 @@ import {
   getPurchasesForDateRange as getPurchasesForDateRangeImpl,
   getPurchasesForMonth as getPurchasesForMonthImpl,
   getPurchasesForDay as getPurchasesForDayImpl,
+  searchPurchases as searchPurchasesImpl,
 } from './purchase-queries';
 import { addPurchase as addPurchaseImpl } from './purchase-create';
 import { updatePurchase as updatePurchaseImpl } from './purchase-update';
 
 export async function getPurchases(userId: string): Promise<Purchase[]> {
   return getPurchasesImpl(userId);
+}
+
+export async function searchPurchases(userId: string, searchTerm: string): Promise<Purchase[]> {
+  return searchPurchasesImpl(userId, searchTerm);
 }
 
 export async function getPurchasesPaginated(params: {

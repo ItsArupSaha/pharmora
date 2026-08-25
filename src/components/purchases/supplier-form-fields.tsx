@@ -9,9 +9,16 @@ import type { Item } from '@/lib/types';
 interface SupplierFormFieldsProps {
   form: UseFormReturn<any>;
   existingItems: Item[];
+  // The purchase form stores the company as "supplier"; other dialogs
+  // (e.g. add-items) store it as "company".
+  companyFieldName?: string;
 }
 
-export function SupplierFormFields({ form, existingItems }: SupplierFormFieldsProps) {
+export function SupplierFormFields({
+  form,
+  existingItems,
+  companyFieldName = 'supplier',
+}: SupplierFormFieldsProps) {
   const existingCompanies = React.useMemo(() => {
     if (!existingItems) return [];
     const set = new Set<string>();
@@ -23,7 +30,7 @@ export function SupplierFormFields({ form, existingItems }: SupplierFormFieldsPr
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [existingItems]);
 
-  const supplierName = form.watch('supplier') || '';
+  const supplierName = form.watch(companyFieldName) || '';
   const [showCompanySuggestions, setShowCompanySuggestions] = React.useState(false);
 
   const companySuggestions = React.useMemo(() => {
@@ -37,7 +44,7 @@ export function SupplierFormFields({ form, existingItems }: SupplierFormFieldsPr
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       <FormField
         control={form.control}
-        name="supplier"
+        name={companyFieldName}
         render={({ field }) => (
           <FormItem>
             <FormLabel>Company Name</FormLabel>
@@ -61,7 +68,7 @@ export function SupplierFormFields({ form, existingItems }: SupplierFormFieldsPr
                         type="button"
                         className="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted text-foreground font-medium"
                         onMouseDown={() => {
-                          form.setValue('supplier', company, {
+                          form.setValue(companyFieldName, company, {
                             shouldDirty: true,
                             shouldTouch: true,
                             shouldValidate: true,

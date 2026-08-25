@@ -7,6 +7,7 @@ import { Loader2 } from 'lucide-react';
 import Image from 'next/image';
 import { useAuth } from '@/hooks/use-auth';
 import { APP_NAME } from '@/lib/app-info';
+import { getLandingPath } from '@/lib/features';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 
@@ -47,10 +48,10 @@ export default function LoginPage() {
 
   React.useEffect(() => {
     if (!loading && authUser) {
-      if (authUser.onboardingComplete) {
-        router.replace('/sales');
+      if (!authUser.onboardingComplete) {
+        router.replace(authUser.appModeChosen ? '/onboarding' : '/mode-selection');
       } else {
-        router.replace('/onboarding');
+        router.replace(getLandingPath(authUser.appMode));
       }
     }
   }, [authUser, loading, router]);

@@ -6,6 +6,7 @@ import * as React from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useAccountAccess } from '@/hooks/use-account-access';
 import { useToast } from '@/hooks/use-toast';
 import type { Customer, Item, SalesReturn } from '@/lib/types';
 import { SalesReturnsTable } from './sales-return/sales-returns-table';
@@ -22,6 +23,7 @@ export default function SalesReturnManagement({ userId }: SalesReturnManagementP
   const [customers, setCustomers] = React.useState<Customer[]>([]);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const { toast } = useToast();
+  const { canWrite } = useAccountAccess();
   const [isPending, startTransition] = React.useTransition();
   const [isInitialLoading, setIsInitialLoading] = React.useState(true);
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
@@ -91,7 +93,7 @@ export default function SalesReturnManagement({ userId }: SalesReturnManagementP
               <CardTitle className="font-headline text-2xl">Sales Returns</CardTitle>
               <CardDescription>Manage customer returns and update their balance.</CardDescription>
             </div>
-            <Button onClick={handleAddNew} className="w-full sm:w-auto">
+            <Button onClick={handleAddNew} disabled={!canWrite} className="w-full sm:w-auto">
               <PlusCircle className="mr-2 h-4 w-4" /> Record New Return
             </Button>
           </div>

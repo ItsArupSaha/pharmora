@@ -6,11 +6,13 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { completeOnboarding } from '@/lib/actions';
+import { getLandingPath } from '@/lib/features';
 import { useRouter } from 'next/navigation';
 import { onboardingSchema, type OnboardingFormValues } from '@/app/onboarding/schema';
 
 export function useOnboarding() {
-  const { user, loading: authLoading, signOut } = useAuth();
+  const { user, authUser, loading: authLoading, signOut } = useAuth();
+  const mode = authUser?.appMode;
   const { toast } = useToast();
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -52,7 +54,7 @@ export function useOnboarding() {
         description: 'Your shop inventory is now ready to use.',
       });
       // Force a reload to ensure the auth state is updated with onboarding status
-      window.location.href = '/sales';
+      window.location.href = getLandingPath(mode);
     } catch (error) {
       console.error(error);
       toast({

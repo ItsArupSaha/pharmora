@@ -6,6 +6,7 @@ import { Edit, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useAccountAccess } from '@/hooks/use-account-access';
 import { useAuth } from '@/hooks/use-auth';
 import {
   Table,
@@ -33,6 +34,14 @@ export function ItemsTable({
   onDelete,
   isPending,
 }: ItemsTableProps) {
+  const { authUser } = useAuth();
+  const { canWrite } = useAccountAccess();
+  // Stock-management mode hides money and generic-group columns; the data
+  // itself is unchanged.
+  const isStockMode = authUser?.appMode === 'stock';
+  const showGeneric = !isStockMode;
+  const showPrices = !isStockMode;
+
   // Pharmacy column labels
   const titleHeader = 'Medicine Name';
   const detailHeader = 'Group (Generic)';
@@ -46,12 +55,12 @@ export function ItemsTable({
           <TableRow>
             <TableHead>{titleHeader}</TableHead>
             <TableHead className="hidden sm:table-cell">Category</TableHead>
-            <TableHead className="hidden md:table-cell">{detailHeader}</TableHead>
+            {showGeneric && <TableHead className="hidden md:table-cell">{detailHeader}</TableHead>}
             <TableHead className="hidden md:table-cell">{companyHeader}</TableHead>
             <TableHead className="hidden sm:table-cell">Expiry Date</TableHead>
             <TableHead className="hidden lg:table-cell">{locationHeader}</TableHead>
-            <TableHead className="text-right hidden sm:table-cell">Prod. Cost</TableHead>
-            <TableHead className="text-right">Selling Price</TableHead>
+            {showPrices && <TableHead className="text-right hidden sm:table-cell">Prod. Cost</TableHead>}
+            {showPrices && <TableHead className="text-right">Selling Price</TableHead>}
             <TableHead className="text-right">Stock</TableHead>
             <TableHead className="text-right w-[120px]">Actions</TableHead>
           </TableRow>
@@ -66,8 +75,8 @@ export function ItemsTable({
                 <TableCell><Skeleton className="h-5 w-2/4" /></TableCell>
                 <TableCell><Skeleton className="h-5 w-2/4" /></TableCell>
                 <TableCell><Skeleton className="h-5 w-2/4" /></TableCell>
-                <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
-                <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
+                {showPrices && <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>}
+                {showPrices && <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>}
                 <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
                 <TableCell><Skeleton className="h-5 w-3/4 ml-auto" /></TableCell>
               </TableRow>
@@ -92,9 +101,11 @@ export function ItemsTable({
                     </div>
                   </TableCell>
                   <TableCell className="hidden sm:table-cell">{item.categoryName}</TableCell>
-                  <TableCell className="hidden md:table-cell">
-                    {item.medicineGroup || '-'}
-                  </TableCell>
+                  {showGeneric && (
+                    <TableCell className="hidden md:table-cell">
+                      {item.medicineGroup || '-'}
+                    </TableCell>
+                  )}
                   <TableCell className="hidden md:table-cell">{item.company || '-'}</TableCell>
                   <TableCell className={cn(
                     "hidden sm:table-cell",
@@ -103,14 +114,14 @@ export function ItemsTable({
                     {item.expiryDate ? format(new Date(item.expiryDate), 'yyyy-MM-dd') : '-'}
                   </TableCell>
                   <TableCell className="hidden lg:table-cell">{item.location || '-'}</TableCell>
-                  <TableCell className="text-right hidden sm:table-cell">৳{item.productionPrice.toFixed(2)}</TableCell>
-                  <TableCell className="text-right">৳{item.sellingPrice.toFixed(2)}</TableCell>
+                  {showPrices && <TableCell className="text-right hidden sm:table-cell">৳{item.productionPrice.toFixed(2)}</TableCell>}
+                  {showPrices && <TableCell className="text-right">৳{item.sellingPrice.toFixed(2)}</TableCell>}
                   <TableCell className="text-right">{item.stock}</TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="icon" onClick={() => onEdit(item)}>
+                    <Button variant="ghost" size="icon" onClick={() => onEdit(item)} disabled={!canWrite}>
                       <Edit className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => onDelete(item.id)} disabled={isPending}>
+                    <Button variant="ghost" size="icon" onClick={() => onDelete(item.id)} disabled={!canWrite || isPending}>
                       <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>
                   </TableCell>

@@ -4,11 +4,14 @@ import * as React from 'react';
 import { PlusCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useAccountAccess } from '@/hooks/use-account-access';
 import { useAuth } from '@/hooks/use-auth';
+import { usePurchaseSearch } from '@/hooks/use-purchase-search';
 import { useToast } from '@/hooks/use-toast';
 import { getCategories, getPurchasesPaginated } from '@/lib/actions';
 import type { Category, Purchase } from '@/lib/types';
 import { PurchasesTable } from './purchases/purchases-table';
+import { PurchaseSearchInput } from './purchases/purchase-search-input';
 import { RecordPurchaseDialog } from './purchases/record-purchase-dialog';
 import { AddCategoryDialog } from './items/add-category-dialog';
 import { DownloadPurchasesDialog } from './purchases/download-purchases-dialog';
@@ -19,6 +22,15 @@ interface PurchaseManagementProps {
 
 export default function PurchaseManagement({ userId }: PurchaseManagementProps) {
   const { authUser } = useAuth();
+  const { canWrite } = useAccountAccess();
+  const {
+    searchTerm,
+    setSearchTerm,
+    isSearching,
+    searchResults,
+    isSearchActive,
+    handleClearSearch,
+  } = usePurchaseSearch(userId);
   const [purchases, setPurchases] = React.useState<Purchase[]>([]);
   const [categories, setCategories] = React.useState<Category[]>([]);
   const [hasMore, setHasMore] = React.useState(true);
@@ -84,6 +96,8 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
                   setEditingPurchase(null);
                   setIsDialogOpen(true);
                 }}
+                disabled={!canWrite}
+                title={canWrite ? undefined : 'Recording purchases is disabled while the service is paused.'}
                 className="w-full sm:w-auto"
               >
                 <PlusCircle className="mr-2 h-4 w-4" /> Record New Purchase
@@ -92,16 +106,25 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          <PurchaseSearchInput
+            searchTerm={searchTerm}
+            onSearchTermChange={setSearchTerm}
+            isSearching={isSearching}
+            isSearchActive={isSearchActive}
+            resultCount={searchResults.length}
+            onClear={handleClearSearch}
+          />
           <PurchasesTable
-            purchases={purchases}
-            isInitialLoading={isInitialLoading}
+            purchases={isSearchActive ? searchResults : purchases}
+            isInitialLoading={isInitialLoading && !isSearchActive}
+            emptyMessage={isSearchActive ? 'No purchases match your search.' : undefined}
             onEdit={(purchase) => {
               setEditingPurchase(purchase);
               setIsDialogOpen(true);
             }}
           />
-          {hasMore && (
+          {hasMore && !isSearchActive && (
             <div className="flex justify-center mt-4">
               <Button onClick={handleLoadMore} disabled={isLoadingMore}>
                 {isLoadingMore ? 'Loading...' : 'Load More'}

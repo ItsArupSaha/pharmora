@@ -4,19 +4,6 @@ import * as React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import {
-  ArrowRightLeft,
-  Store,
-  CreditCard,
-  FileText,
-  Package,
-  ShoppingCart,
-  ShoppingBag,
-  AlertTriangle,
-  ShieldAlert,
-  FolderSync,
-  Wallet,
-} from 'lucide-react';
 
 import {
   Sidebar,
@@ -34,13 +21,30 @@ import {
 import { useAuth } from '@/hooks/use-auth';
 import { getAlertCounts } from '@/lib/db/item-alerts';
 import { APP_NAME } from '@/lib/app-info';
+import { getVisibleFeatures } from '@/lib/features';
+import { AdminPanelLink } from './admin-panel-link';
+import { ModeSwitcher } from './mode-switcher';
 import { ProfileButton } from './profile-button';
+import { CORE_NAV_ITEMS, OTHER_NAV_ITEMS, type NavItem } from './sidebar-navigation';
 
 export function AppSidebar() {
   const pathname = usePathname();
   const { authUser, user } = useAuth();
   const [alertCount, setAlertCount] = React.useState(0);
   const [stockWarningCount, setStockWarningCount] = React.useState(0);
+
+  const visibleFeatures = React.useMemo(
+    () => getVisibleFeatures(authUser?.appMode, authUser?.disabledFeatures),
+    [authUser?.appMode, authUser?.disabledFeatures]
+  );
+
+  const filterVisible = React.useCallback(
+    (items: NavItem[]) => items.filter((item) => visibleFeatures.includes(item.feature)),
+    [visibleFeatures]
+  );
+
+  const coreItems = React.useMemo(() => filterVisible(CORE_NAV_ITEMS), [filterVisible]);
+  const otherItems = React.useMemo(() => filterVisible(OTHER_NAV_ITEMS), [filterVisible]);
 
   const refreshCounts = React.useCallback(() => {
     if (!user) return;
@@ -69,30 +73,7 @@ export function AppSidebar() {
     return () => window.removeEventListener('focus', onFocus);
   }, [refreshCounts]);
 
-  const coreItems = React.useMemo(
-    () => [
-      { href: '/sales', icon: ShoppingCart, label: 'Sell' },
-      { href: '/items', icon: Package, label: 'Medicines / Stocks' },
-      { href: '/expenses', icon: CreditCard, label: 'Expense' },
-      { href: '/purchases', icon: ShoppingBag, label: 'Purchase' },
-      { href: '/expiry-alerts', icon: AlertTriangle, label: 'Expiry Alerts', badge: true },
-      { href: '/stock-warnings', icon: ShieldAlert, label: 'Stock Warnings', stockBadge: true },
-      { href: '/reports', icon: FileText, label: 'Reports' },
-      { href: '/balance-sheet', icon: Store, label: 'Business Overview' },
-    ],
-    []
-  );
-
-  const otherItems = React.useMemo(
-    () => [
-      { href: '/payables', icon: ArrowRightLeft, label: 'Payables (Suppliers)' },
-      { href: '/dues', icon: Wallet, label: 'Customer Dues' },
-      { href: '/bulk-shelf-update', icon: FolderSync, label: 'Shelf Update (Bulk)' },
-    ],
-    []
-  );
-
-  const renderMenuItems = (itemsList: typeof coreItems) => {
+  const renderMenuItems = (itemsList: NavItem[]) => {
     return itemsList.map((item) => (
       <SidebarMenuItem key={item.href}>
         <SidebarMenuButton
@@ -106,12 +87,12 @@ export function AppSidebar() {
               <item.icon className="h-4 w-4" />
               <span className="font-medium text-[13px]">{item.label}</span>
             </div>
-            {'badge' in item && alertCount > 0 && (
+            {item.badge === 'expiry' && alertCount > 0 && (
               <span className="flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-[10px] font-semibold text-destructive-foreground animate-pulse">
                 {alertCount}
               </span>
             )}
-            {'stockBadge' in item && stockWarningCount > 0 && (
+            {item.badge === 'stock' && stockWarningCount > 0 && (
               <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-[10px] font-semibold text-white animate-pulse">
                 {stockWarningCount}
               </span>
@@ -165,7 +146,9 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="p-4 border-t flex flex-col gap-4 bg-muted/20">
+      <SidebarFooter className="p-4 border-t flex flex-col gap-3 bg-muted/20">
+        <ModeSwitcher />
+        <AdminPanelLink />
         <ProfileButton />
       </SidebarFooter>
     </Sidebar>

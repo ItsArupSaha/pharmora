@@ -4,6 +4,7 @@ import * as React from 'react';
 import { PlusCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { useAccountAccess } from '@/hooks/use-account-access';
 import { ClosingStockDialog } from './closing-stock-dialog';
 
 interface ItemManagementHeaderProps {
@@ -29,6 +30,7 @@ export function ItemManagementHeader({
   handleAddNewItem,
   loadData,
 }: ItemManagementHeaderProps) {
+  const { canWrite } = useAccountAccess();
   return (
     <CardHeader>
       <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
@@ -37,7 +39,12 @@ export function ItemManagementHeader({
           <CardDescription>Manage your item catalog, prices, and stock levels.</CardDescription>
         </div>
         <div className="flex flex-col sm:flex-row flex-wrap gap-2 w-full sm:w-auto sm:justify-end">
-          <Button onClick={handleAddNewItem} className="bg-primary hover:bg-primary/90 w-full sm:w-auto">
+          <Button
+            onClick={handleAddNewItem}
+            disabled={!canWrite}
+            title={canWrite ? undefined : 'Adding items is disabled while the service is paused.'}
+            className="bg-primary hover:bg-primary/90 w-full sm:w-auto"
+          >
             <PlusCircle className="mr-2 h-4 w-4" /> Add New Item
           </Button>
           <ClosingStockDialog

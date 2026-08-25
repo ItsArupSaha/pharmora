@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { useAccountAccess } from '@/hooks/use-account-access';
 import type { Sale, Item, Customer } from '@/lib/types';
 import { getSaleTransaction } from '@/lib/actions';
 import { SaleDetailsDialog } from '../sale-details-dialog';
@@ -41,6 +42,7 @@ export function SalesTable({
   const [saleStatuses, setSaleStatuses] = React.useState<Record<string, SaleStatus>>({});
   const [editingSale, setEditingSale] = React.useState<Sale | null>(null);
   const [isEditOpen, setIsEditOpen] = React.useState(false);
+  const { canWrite } = useAccountAccess();
 
   const getItemTitle = (itemId: string) => items.find((i) => i.id === itemId)?.title || 'Unknown Item';
 
@@ -161,10 +163,10 @@ export function SalesTable({
                   <TableCell className="text-right font-medium">৳{sale.total.toFixed(2)}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => handleEditClick(sale)} disabled={isPending}>
+                      <Button variant="ghost" size="icon" onClick={() => handleEditClick(sale)} disabled={isPending || !canWrite}>
                         <Pencil className="h-4 w-4 text-muted-foreground hover:text-foreground" />
                       </Button>
-                      <Button variant="ghost" size="icon" onClick={() => onDelete(sale.id)} disabled={isPending}>
+                      <Button variant="ghost" size="icon" onClick={() => onDelete(sale.id)} disabled={isPending || !canWrite}>
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </div>

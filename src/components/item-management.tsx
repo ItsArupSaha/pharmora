@@ -3,10 +3,9 @@
 import * as React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { AddItemDialog } from './items/add-item-dialog';
+import { AddItemsDialog } from './items/add-items-dialog';
 import { AddCategoryDialog } from './items/add-category-dialog';
 import { ItemsTable } from './items/items-table';
-import { CategoriesList } from './items/categories-list';
 import { ClosingStockResults } from './items/closing-stock-results';
 import { useItemManagement } from '@/hooks/use-item-management';
 import { ItemManagementHeader } from './items/item-management-header';
@@ -47,9 +46,7 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
     handleEditItem,
     handleAddNewItem,
     handleAddNewCategory,
-    handleEditCategory,
     handleDeleteItem,
-    handleDeleteCategory,
     handleCalculateClosingStock,
     handleDownloadClosingStockPdf,
     handleDownloadClosingStockXlsx,
@@ -99,15 +96,6 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
           </div>
         )}
 
-        {/* Categories Section */}
-        <CategoriesList
-          categories={categories}
-          onAddClick={handleAddNewCategory}
-          onEditClick={handleEditCategory}
-          onDeleteClick={handleDeleteCategory}
-          isPending={isPending}
-        />
-
         {/* Closing Stock Section */}
         <ClosingStockResults
           closingStockData={closingStockData}
@@ -149,7 +137,7 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
         )}
       </CardContent>
 
-      <AddItemDialog
+      <AddItemsDialog
         userId={userId}
         isOpen={isItemDialogOpen}
         onOpenChange={setIsItemDialogOpen}

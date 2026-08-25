@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { AddCustomerDialog } from './customers/add-customer-dialog';
 import { CustomersTable } from './customers/customers-table';
+import { useAccountAccess } from '@/hooks/use-account-access';
 import { useCustomerManagement } from '@/hooks/use-customer-management';
 
 interface CustomerManagementProps {
@@ -15,6 +16,7 @@ interface CustomerManagementProps {
 }
 
 export default function CustomerManagement({ userId }: CustomerManagementProps) {
+  const { canWrite } = useAccountAccess();
   const {
     customers,
     isInitialLoading,
@@ -47,7 +49,7 @@ export default function CustomerManagement({ userId }: CustomerManagementProps) 
             <CardDescription>Manage your customer information and balances.</CardDescription>
           </div>
           <div className="flex flex-col items-end gap-2">
-            <Button onClick={handleAddNew}>
+            <Button onClick={handleAddNew} disabled={!canWrite}>
               <PlusCircle className="mr-2 h-4 w-4" /> Add New Customer
             </Button>
             {/* Search Input */}

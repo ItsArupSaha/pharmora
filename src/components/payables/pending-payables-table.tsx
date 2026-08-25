@@ -6,6 +6,7 @@ import { DollarSign } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useAccountAccess } from '@/hooks/use-account-access';
 import type { Transaction } from '@/lib/types';
 import PayPayableDialog from '../pay-payable-dialog';
 
@@ -22,6 +23,7 @@ export function PendingPayablesTable({
   userId,
   onPaymentSuccess,
 }: PendingPayablesTableProps) {
+  const { canWrite } = useAccountAccess();
   return (
     <div className="border rounded-md overflow-x-auto w-full">
       <Table>
@@ -59,7 +61,7 @@ export function PendingPayablesTable({
                 <TableCell className="text-right">৳{payable.amount.toFixed(2)}</TableCell>
                 <TableCell className="text-center">
                   <PayPayableDialog payable={payable} userId={userId} onPaymentSuccess={onPaymentSuccess}>
-                    <Button size="sm" variant="outline" className="w-full whitespace-nowrap">
+                    <Button size="sm" variant="outline" className="w-full whitespace-nowrap" disabled={!canWrite}>
                       <DollarSign className="w-3 h-3 mr-1" /> Pay
                     </Button>
                   </PayPayableDialog>

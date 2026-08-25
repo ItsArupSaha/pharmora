@@ -1,5 +1,25 @@
 
 
+export const FEATURE_KEYS = [
+  'sell',
+  'items',
+  'purchases',
+  'expenses',
+  'expiry-alerts',
+  'stock-warnings',
+  'reports',
+  'business-overview',
+  'payables',
+  'customer-dues',
+  'shelf-update',
+] as const;
+
+export type FeatureKey = (typeof FEATURE_KEYS)[number];
+
+export type AppMode = 'normal' | 'stock';
+
+export type AccountStatus = 'active' | 'disabled';
+
 export type AuthUser = {
   uid: string;
   email: string | null;
@@ -7,6 +27,12 @@ export type AuthUser = {
   photoURL: string | null;
   isApproved: boolean;
   createdAt: any; // Firestore Timestamp
+
+  // Mode & access control
+  appMode?: AppMode;
+  appModeChosen?: boolean;
+  accountStatus?: AccountStatus;
+  disabledFeatures?: FeatureKey[];
 
   // Onboarding fields
   companyName?: string;

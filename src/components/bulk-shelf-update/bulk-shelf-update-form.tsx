@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2, FolderSync, MapPin } from 'lucide-react';
+import { useAccountAccess } from '@/hooks/use-account-access';
 
 interface BulkShelfUpdateFormProps {
   companies: string[];
@@ -28,6 +29,7 @@ export function BulkShelfUpdateForm({
   updating,
   itemCount,
 }: BulkShelfUpdateFormProps) {
+  const { canWrite } = useAccountAccess();
   return (
     <Card className="md:col-span-1 border shadow-sm">
       <CardHeader>
@@ -70,7 +72,7 @@ export function BulkShelfUpdateForm({
           <Button
             type="submit"
             className="w-full"
-            disabled={updating || itemCount === 0}
+            disabled={updating || itemCount === 0 || !canWrite}
           >
             {updating ? (
               <>

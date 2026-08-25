@@ -5,6 +5,7 @@ import { DollarSign } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useAccountAccess } from '@/hooks/use-account-access';
 import type { CustomerWithDue } from '@/lib/types';
 import RefundCustomerDialog from '../refund-customer-dialog';
 
@@ -21,6 +22,7 @@ export function CustomerOverpaymentsTable({
   userId,
   onRefundSuccess,
 }: CustomerOverpaymentsTableProps) {
+  const { canWrite } = useAccountAccess();
   return (
     <div className="border rounded-md overflow-x-auto w-full">
       <Table>
@@ -64,6 +66,7 @@ export function CustomerOverpaymentsTable({
                       size="sm"
                       variant="outline"
                       className="w-full border-emerald-200 text-emerald-700 hover:bg-emerald-50 whitespace-nowrap"
+                      disabled={!canWrite}
                     >
                       <DollarSign className="w-3 h-3 mr-1" /> Refund
                     </Button>

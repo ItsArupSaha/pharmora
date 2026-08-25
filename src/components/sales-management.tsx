@@ -9,6 +9,7 @@ import { SalesTable } from './sales/sales-table';
 import { RecordSaleForm } from './sales/record-sale-form';
 import { SalesDirectorySearch } from './sales/sales-directory-search';
 import { SalesHistoryFilters } from './sales/sales-history-filters';
+import { useAccountAccess } from '@/hooks/use-account-access';
 import { useSalesManagement } from '@/hooks/use-sales-management';
 
 interface SalesManagementProps {
@@ -17,6 +18,7 @@ interface SalesManagementProps {
 
 export default function SalesManagement({ userId }: SalesManagementProps) {
   const [activeTab, setActiveTab] = React.useState<'checkout' | 'history'>('checkout');
+  const { canWrite } = useAccountAccess();
   const {
     authUser,
     items,
@@ -61,6 +63,8 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
         <Button
           variant={activeTab === 'checkout' ? 'default' : 'outline'}
           onClick={() => setActiveTab('checkout')}
+          disabled={!canWrite}
+          title={canWrite ? undefined : 'Recording sales is disabled while the service is paused.'}
           className="flex-1 sm:flex-initial"
         >
           Record Sale (POS)
@@ -74,7 +78,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
         </Button>
       </div>
 
-      {activeTab === 'checkout' ? (
+      {activeTab === 'checkout' && canWrite ? (
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start w-full">
           <Card className="xl:col-span-2 w-full min-w-0">
             <CardHeader>

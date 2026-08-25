@@ -6,6 +6,7 @@ import { EditCompanyDetailsDialog } from '@/components/edit-company-details-dial
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useAccountAccess } from '@/hooks/use-account-access';
 import { useAuth } from '@/hooks/use-auth';
 import { getDashboardStats } from '@/lib/db/dashboard';
 import { countExpiringItems } from '@/lib/db/item-alerts';
@@ -17,6 +18,7 @@ type DashboardStats = Awaited<ReturnType<typeof getDashboardStats>>;
 
 export default function DashboardPage() {
   const { user, authUser } = useAuth();
+  const { canWrite } = useAccountAccess();
   const [stats, setStats] = React.useState<DashboardStats | null>(null);
   const [alertCount, setAlertCount] = React.useState(0);
   const [isLoading, setIsLoading] = React.useState(true);
@@ -72,7 +74,7 @@ export default function DashboardPage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h1 className="font-headline text-3xl font-semibold">Dashboard</h1>
         <EditCompanyDetailsDialog user={authUser}>
-          <Button variant="outline" className="w-full sm:w-auto">
+          <Button variant="outline" className="w-full sm:w-auto" disabled={!canWrite}>
             <Settings className="mr-2 h-4 w-4" />
             Edit Store Details
           </Button>

@@ -12,6 +12,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import type { Purchase } from '../types';
+import { isFuzzyMatch } from '../search-utils';
 import { docToPurchase } from './utils';
 import { cachedCollection } from './collection-cache';
 import { readLedgerVersion } from './data-version';
@@ -25,6 +26,32 @@ export async function getPurchases(userId: string): Promise<Purchase[]> {
         const snapshot = await getDocs(query(purchasesCollection, orderBy('date', 'desc')));
         return snapshot.docs.map(docToPurchase);
     }, { version });
+}
+
+// Searches the version-guarded 'purchases-master' cache, so repeated searches
+// cost no extra Firestore reads; mutations bump the ledger version and force
+// an honest refetch. Matches by memo number (PUR-0001) or any item name.
+export async function searchPurchases(userId: string, searchTerm: string): Promise<Purchase[]> {
+    if (!db || !userId || !searchTerm.trim()) return [];
+
+    const term = searchTerm.trim().toLowerCase();
+    // Memo-style queries (digits or a PUR- prefix) match strictly. The fuzzy
+    // layer exists for medicine-name typos, and running it on memo queries
+    // made e.g. "pur-0170" phonetically match "pur"~"para" (Paracetamol) and
+    // return a large slice of the catalog.
+    const isMemoQuery = term.startsWith('pur') || /\d/.test(term);
+
+    const allPurchases = await getPurchases(userId);
+
+    return allPurchases.filter((purchase) => {
+        const memo = (purchase.purchaseId || '').toLowerCase();
+        if (memo.includes(term)) return true;
+        return purchase.items.some((item) => {
+            const name = (item.itemName || '').toLowerCase();
+            if (name.includes(term)) return true;
+            return !isMemoQuery && isFuzzyMatch(item.itemName, term);
+        });
+    });
 }
 
 export async function getPurchasesForDateRange(userId: string, startDate: Date, endDate: Date): Promise<Purchase[]> {

@@ -5,7 +5,7 @@ import { FileSpreadsheet, FileText } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { AddItemDialog } from './items/add-item-dialog';
+import { AddItemsDialog } from './items/add-items-dialog';
 import { AddCategoryDialog } from './items/add-category-dialog';
 import { ItemsTable } from './items/items-table';
 import { ExpiryFiltersHeader } from './expiry/expiry-filters-header';
@@ -109,7 +109,7 @@ export default function ExpiryAlerts({ userId }: ExpiryAlertsProps) {
         )}
       </CardContent>
 
-      <AddItemDialog
+      <AddItemsDialog
         userId={userId}
         isOpen={isItemDialogOpen}
         onOpenChange={setIsItemDialogOpen}

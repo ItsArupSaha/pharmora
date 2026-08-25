@@ -5,6 +5,7 @@ import { Edit, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useAccountAccess } from '@/hooks/use-account-access';
 import type { Customer } from '@/lib/types';
 
 interface CustomersTableProps {
@@ -24,6 +25,7 @@ export function CustomersTable({
   isPending,
   searchQuery,
 }: CustomersTableProps) {
+  const { canWrite } = useAccountAccess();
   return (
     <div className="border rounded-md">
       <Table>
@@ -69,14 +71,14 @@ export function CustomersTable({
                 <TableCell>{customer.address}</TableCell>
                 <TableCell className="text-right">৳{(customer.dueBalance || 0).toFixed(2)}</TableCell>
                 <TableCell className="text-right">
-                  <Button variant="ghost" size="icon" onClick={() => onEdit(customer)}>
+                  <Button variant="ghost" size="icon" onClick={() => onEdit(customer)} disabled={!canWrite}>
                     <Edit className="h-4 w-4" />
                   </Button>
                   <Button
                     variant="ghost"
                     size="icon"
                     onClick={() => onDelete(customer.id)}
-                    disabled={isPending}
+                    disabled={!canWrite || isPending}
                   >
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
