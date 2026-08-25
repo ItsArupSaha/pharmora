@@ -2,7 +2,8 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, ShieldCheck } from 'lucide-react';
+import { Loader2, LogOut, ShieldCheck } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { AdminUsersTable } from '@/components/admin/admin-users-table';
 import { useAuth } from '@/hooks/use-auth';
@@ -17,7 +18,7 @@ import {
 import type { AccountStatus, AppMode } from '@/lib/types';
 
 export default function AdminPage() {
-  const { user, authUser } = useAuth();
+  const { user, authUser, signOut } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
   const [users, setUsers] = React.useState<AdminUserRecord[] | null>(null);
@@ -108,6 +109,16 @@ export default function AdminPage() {
               Manage modes and service access for every Pharmora account.
             </p>
           </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="ml-auto shrink-0"
+            onClick={() => void signOut()}
+            title="Sign Out"
+          >
+            <LogOut className="h-4 w-4" />
+            Sign Out
+          </Button>
         </div>
 
         <Card>

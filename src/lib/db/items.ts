@@ -21,6 +21,7 @@ import { isNonSalableCategory, resolveIsSalable } from '../item-flags';
 import { sumBatchQuantities, distributeStockDelta } from '../batch-allocation';
 import { batchesCollectionRef, batchDocRef, fetchItemBatches } from './batch-utils';
 import { cachedCollection, invalidateCollectionCache } from './collection-cache';
+import { stripUndefinedFields } from './firestore-payload';
 import { invalidateAppData, readCatalogVersion } from './data-version';
 
 
@@ -109,11 +110,11 @@ export async function addItem(userId: string, data: Omit<Item, 'id'>) {
   if (!db || !userId) return;
   const salable = resolveIsSalable(data);
   const itemsCollection = collection(db, 'users', userId, 'items');
-  const newDocRef = await addDoc(itemsCollection, {
+  const newDocRef = await addDoc(itemsCollection, stripUndefinedFields({
     ...data,
     isSalable: salable,
     sellingPrice: salable ? data.sellingPrice : 0,
-  });
+  }));
   await invalidateAppData(userId);
   return { id: newDocRef.id, ...data, isSalable: salable };
 }
@@ -122,11 +123,11 @@ export async function updateItem(userId: string, id: string, data: Omit<Item, 'i
   if (!db || !userId) return;
   const salable = resolveIsSalable(data);
   const itemRef = doc(db, 'users', userId, 'items', id);
-  await updateDoc(itemRef, {
+  await updateDoc(itemRef, stripUndefinedFields({
     ...data,
     isSalable: salable,
     sellingPrice: salable ? data.sellingPrice : 0,
-  });
+  }));
 
   // Manual stock edits must flow into batches when batch tracking is active,
   // otherwise the next FEFO sale would see a stale quantity.

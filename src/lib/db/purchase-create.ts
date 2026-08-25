@@ -8,6 +8,7 @@ import {
   where
 } from 'firebase/firestore';
 import { invalidateAppData } from './data-version';
+import { stripUndefinedFields } from './firestore-payload';
 import { db } from '../firebase';
 import type { Item, Metadata, Purchase } from '../types';
 import { earlierExpiry } from '../batch-allocation';
@@ -49,7 +50,7 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
               ...item,
               itemName: item.itemName.trim()
           }));
-          const purchaseData = {
+          const purchaseData = stripUndefinedFields({
               ...data,
               items: mappedItems,
               purchaseId,
@@ -60,7 +61,7 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
               vatType: data.vatType || 'amount',
               vatValue: data.vatValue || 0,
               vatAmount: vatAmount,
-          };
+          });
           transaction.set(newPurchaseRef, purchaseData);
           transaction.set(metadataRef, { lastPurchaseNumber: newPurchaseNumber }, { merge: true });
 

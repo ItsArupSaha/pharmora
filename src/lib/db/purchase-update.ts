@@ -17,6 +17,7 @@ import { resolveIsSalable } from '../item-flags';
 import { earlierExpiry } from '../batch-allocation';
 import { BatchWriteLedger } from './batch-ledger';
 import { invalidateAppData } from './data-version';
+import { stripUndefinedFields } from './firestore-payload';
 import {
   computePurchaseTotals,
   planPurchaseSettlements,
@@ -261,7 +262,7 @@ export async function updatePurchase(
               itemName: item.itemName.trim()
           }));
           // Set updated purchase data
-          const purchaseData = {
+          const purchaseData = stripUndefinedFields({
               ...data,
               items: mappedItems,
               purchaseId,
@@ -272,7 +273,7 @@ export async function updatePurchase(
               vatType: data.vatType || 'amount',
               vatValue: data.vatValue || 0,
               vatAmount,
-          };
+          });
           transaction.set(purchaseRef, purchaseData);
 
           // Regenerate expense/payable writes for the edited purchase
