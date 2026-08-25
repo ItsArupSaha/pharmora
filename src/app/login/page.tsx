@@ -7,6 +7,7 @@ import { Loader2 } from 'lucide-react';
 import Image from 'next/image';
 import { useAuth } from '@/hooks/use-auth';
 import { APP_NAME } from '@/lib/app-info';
+import { isAdminEmail } from '@/lib/admin-config';
 import { getLandingPath } from '@/lib/features';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -48,10 +49,12 @@ export default function LoginPage() {
 
   React.useEffect(() => {
     if (!loading && authUser) {
-      if (!authUser.onboardingComplete) {
-        router.replace(authUser.appModeChosen ? '/onboarding' : '/mode-selection');
-      } else {
+      if (isAdminEmail(authUser.email)) {
+        router.replace('/admin');
+      } else if (authUser.onboardingComplete) {
         router.replace(getLandingPath(authUser.appMode));
+      } else {
+        router.replace('/onboarding');
       }
     }
   }, [authUser, loading, router]);

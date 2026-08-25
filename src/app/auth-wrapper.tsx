@@ -2,17 +2,23 @@
 'use client';
 
 import { useAuth } from '@/hooks/use-auth';
+import { isAdminEmail } from '@/lib/admin-config';
 import { getLandingPath } from '@/lib/features';
 import { usePathname, useRouter } from 'next/navigation';
 import * as React from 'react';
 import { Loader2 } from 'lucide-react';
 
-const AUTH_PAGES = ['/login', '/onboarding', '/mode-selection'];
+const AUTH_PAGES = ['/login', '/onboarding'];
 
 export function AppWithAuthProvider({ children }: { children: React.ReactNode }) {
   const { authUser, loading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+
+  // The app admin (configured via .env) never goes through onboarding; their
+  // home is the admin panel.
+  const isAdmin = isAdminEmail(authUser?.email);
+  const isOnboarded = isAdmin || Boolean(authUser?.onboardingComplete);
 
   React.useEffect(() => {
     if (loading) return;
@@ -24,31 +30,24 @@ export function AppWithAuthProvider({ children }: { children: React.ReactNode })
       if (pathname !== '/login') {
         router.replace('/login');
       }
-    } else {
-      // If logged in...
-      if (!authUser.onboardingComplete) {
-        // ...mode comes first, then onboarding
-        if (!authUser.appModeChosen) {
-          if (pathname !== '/mode-selection') {
-            router.replace('/mode-selection');
-          }
-        } else if (pathname !== '/onboarding') {
-          router.replace('/onboarding');
-        }
-      } else {
-        // ...and onboarding is complete, but they are on an auth page, redirect to landing
-        if (isAuthPage) {
-          router.replace(getLandingPath(authUser.appMode));
-        }
+    } else if (isAdmin) {
+      if (isAuthPage) {
+        router.replace('/admin');
       }
+    } else if (!authUser.onboardingComplete) {
+      if (pathname !== '/onboarding') {
+        router.replace('/onboarding');
+      }
+    } else if (isAuthPage) {
+      // Onboarding complete but sitting on an auth page — go to the mode landing
+      router.replace(getLandingPath(authUser.appMode));
     }
-  }, [authUser, loading, router, pathname]);
+  }, [authUser, isAdmin, loading, router, pathname]);
 
-  const onPreOnboardingPage = pathname === '/mode-selection' || pathname === '/onboarding';
   const showLoader =
     loading ||
     (!authUser && pathname !== '/login') ||
-    (authUser && !authUser.onboardingComplete && !onPreOnboardingPage);
+    (authUser && !isOnboarded && pathname !== '/onboarding');
 
   if (showLoader) {
     return (

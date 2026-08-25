@@ -3,6 +3,7 @@
 
 import { initializeNewUser } from '@/lib/db/database';
 import { auth, db } from '@/lib/firebase';
+import { isAdminEmail } from '@/lib/admin-config';
 import type { AuthUser } from '@/lib/types';
 import {
   signOut as firebaseSignOut,
@@ -63,14 +64,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const userSnap = await getDoc(userRef);
 
       if (!userSnap.exists()) {
-        // New user, create their document and initialize their data
+        // New user, create their document and initialize their data.
+        // The admin account (from .env) skips onboarding entirely.
         await setDoc(userRef, {
           uid: currentUser.uid,
           email: currentUser.email,
           displayName: currentUser.displayName,
           photoURL: currentUser.photoURL,
           createdAt: serverTimestamp(),
-          onboardingComplete: false,
+          onboardingComplete: isAdminEmail(currentUser.email),
         });
         await initializeNewUser(currentUser.uid);
       }

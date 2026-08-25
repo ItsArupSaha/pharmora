@@ -30,7 +30,6 @@ export type AuthUser = {
 
   // Mode & access control
   appMode?: AppMode;
-  appModeChosen?: boolean;
   accountStatus?: AccountStatus;
   disabledFeatures?: FeatureKey[];
 

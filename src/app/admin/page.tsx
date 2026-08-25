@@ -22,6 +22,7 @@ export default function AdminPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [users, setUsers] = React.useState<AdminUserRecord[] | null>(null);
+  const [loadError, setLoadError] = React.useState<string | null>(null);
   const [busyUserId, setBusyUserId] = React.useState<string | null>(null);
 
   const isAdmin = isAdminEmail(user?.email);
@@ -30,16 +31,15 @@ export default function AdminPage() {
     if (!isAdmin) return;
     try {
       setUsers(await adminListUsers());
+      setLoadError(null);
     } catch (error) {
       console.error('Failed to list users:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Could not load the user list.',
-      });
+      setLoadError(
+        error instanceof Error ? error.message : 'Could not load the user list.'
+      );
       setUsers([]);
     }
-  }, [isAdmin, toast]);
+  }, [isAdmin]);
 
   React.useEffect(() => {
     if (!authUser) return;
@@ -126,7 +126,22 @@ export default function AdminPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {users.length === 0 ? (
+            {loadError ? (
+              <div className="rounded-md border border-destructive/40 bg-destructive/10 p-4 text-sm">
+                <p className="font-semibold text-destructive">
+                  Failed to load accounts
+                </p>
+                <p className="pt-1 text-muted-foreground">
+                  {loadError}
+                </p>
+                <p className="pt-1 text-muted-foreground">
+                  This usually means the Firestore rules do not allow listing
+                  the users collection for the admin yet — publish the admin
+                  rules (with your admin email) in the Firebase console, then
+                  reload this page.
+                </p>
+              </div>
+            ) : users.length === 0 ? (
               <p className="py-6 text-center text-sm text-muted-foreground">
                 No accounts found.
               </p>
