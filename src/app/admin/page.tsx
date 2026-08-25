@@ -2,8 +2,7 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Loader2, ShieldCheck } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Loader2, ShieldCheck } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { AdminUsersTable } from '@/components/admin/admin-users-table';
 import { useAuth } from '@/hooks/use-auth';
@@ -99,21 +98,16 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-muted/40 p-4 sm:p-8">
       <div className="mx-auto max-w-5xl space-y-6">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10">
-              <ShieldCheck className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <h1 className="font-headline text-2xl font-semibold">Admin Panel</h1>
-              <p className="text-sm text-muted-foreground">
-                Manage modes and service access for every Pharmora account.
-              </p>
-            </div>
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10">
+            <ShieldCheck className="h-5 w-5 text-primary" />
           </div>
-          <Button variant="outline" onClick={() => router.push('/')}>
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back to App
-          </Button>
+          <div>
+            <h1 className="font-headline text-2xl font-semibold">Admin Panel</h1>
+            <p className="text-sm text-muted-foreground">
+              Manage modes and service access for every Pharmora account.
+            </p>
+          </div>
         </div>
 
         <Card>
