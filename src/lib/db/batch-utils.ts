@@ -37,16 +37,26 @@ export async function receivePurchaseBatch(
   itemId: string,
   purchaseId: string,
   line: PurchaseItem,
-  capitalizedCost: number
+  capitalizedCost: number,
+  preloadedBatches?: Array<{ ref: any; data: ItemBatch }>
 ): Promise<void> {
   const batchNo = (line.batchNo || '').trim() || `AUTO-${purchaseId}`;
   const quantity = Number(line.quantity) || 0;
 
-  const snapshot = await getDocs(query(batchesCollectionRef(userId, itemId)));
-  const existing = snapshot.docs.find(d => (d.data().batchNo || '') === batchNo);
+  let existing: { ref: any; data: ItemBatch } | undefined;
+
+  if (preloadedBatches) {
+    existing = preloadedBatches.find(d => (d.data.batchNo || '') === batchNo);
+  } else {
+    const snapshot = await getDocs(query(batchesCollectionRef(userId, itemId)));
+    const match = snapshot.docs.find(d => (d.data().batchNo || '') === batchNo);
+    if (match) {
+      existing = { ref: match.ref, data: match.data() as ItemBatch };
+    }
+  }
 
   if (existing) {
-    const data = existing.data() as ItemBatch;
+    const data = existing.data;
     const currentQty = Number(data.quantity) || 0;
     const currentCost = Number(data.cost) || 0;
     const newQty = currentQty + quantity;
@@ -55,14 +65,22 @@ export async function receivePurchaseBatch(
       cost: mergeBatchCost(currentQty, currentCost, quantity, capitalizedCost),
       expiryDate: earlierExpiry(data.expiryDate, line.expiryDate),
     });
+    data.quantity = newQty;
+    data.cost = mergeBatchCost(currentQty, currentCost, quantity, capitalizedCost);
+    data.expiryDate = earlierExpiry(data.expiryDate, line.expiryDate);
   } else {
-    transaction.set(newBatchDocRef(userId, itemId), buildBatchData({
+    const newRef = newBatchDocRef(userId, itemId);
+    const newBatch = buildBatchData({
       batchNo,
       expiryDate: line.expiryDate ?? null,
       quantity,
       initialQuantity: quantity,
       cost: capitalizedCost,
       purchaseId,
-    }));
+    });
+    transaction.set(newRef, newBatch);
+    if (preloadedBatches) {
+      preloadedBatches.push({ ref: newRef, data: newBatch });
+    }
   }
 }

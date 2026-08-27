@@ -295,63 +295,19 @@ export async function addSale(
       data.customerId = customerRef.id;
     }
 
-    // 1. Pre-fetch selected item documents
-    const selectedItemRefs = data.items.map(item => doc(itemsCollection, item.itemId));
-    const selectedItemSnaps = await Promise.all(selectedItemRefs.map(ref => getDoc(ref)));
-
     // Server-side law (M3): the browser never decides money. Quantities must
-    // be whole and positive, and the price is ALWAYS the item's recorded
-    // selling price — client-sent prices are overwritten before use.
+    // be whole and positive — initial synchronous check.
     const itemsError = validateSaleItems(data.items);
     if (itemsError) return { success: false, error: itemsError };
 
-    let serverSubtotal = 0;
-    for (let i = 0; i < selectedItemSnaps.length; i++) {
-      const snap = selectedItemSnaps[i];
-      if (!snap.exists()) {
-        return { success: false, error: `Item with id ${data.items[i].itemId} does not exist.` };
-      }
-      const itemData = snap.data() as Item;
-      if (!resolveIsSalable(itemData)) {
-        return { success: false, error: `Item "${itemData.title}" is a non-salable asset and cannot be sold.` };
-      }
-      const customPrice = (data.items[i] as any).price;
-      const unitPrice =
-        customPrice !== undefined && customPrice !== null && !isNaN(Number(customPrice)) && Number(customPrice) >= 0
-          ? Number(customPrice)
-          : (Number(itemData.sellingPrice) || 0);
-
-      (data.items[i] as SaleItem).price = unitPrice;
-      serverSubtotal += unitPrice * Number(data.items[i].quantity);
-    }
-
-    const discountError = validateDiscount(
-      data.discountType === 'percentage'
-        ? { type: 'percentage', value: Number(data.discountValue) || 0 }
-        : data.discountType === 'amount'
-          ? { type: 'amount', value: Number(data.discountValue) || 0 }
-          : { type: 'none' },
-      serverSubtotal
-    );
-    if (discountError) return { success: false, error: discountError };
-
-    const discountTotal = data.discountType === 'percentage'
-      ? serverSubtotal * ((Number(data.discountValue) || 0) / 100)
-      : data.discountType === 'amount' ? (Number(data.discountValue) || 0) : 0;
-    const effectiveBaseTotal = serverSubtotal - Math.min(serverSubtotal, discountTotal) + (Number(data.extraSales) || 0);
-    const payableTotal = data.total !== undefined && !isNaN(Number(data.total)) && Number(data.total) >= 0
-      ? Number(data.total)
-      : effectiveBaseTotal;
-    const paidError = validateAmountPaid(
-      data.paymentMethod === 'Split' ? Number(data.amountPaid) : undefined,
-      payableTotal
-    );
-    if (paidError) return { success: false, error: paidError };
+    const selectedItemRefs = data.items.map(item => doc(itemsCollection, item.itemId));
 
     const result = await runTransaction(db, async (transaction) => {
-      const metadataDoc = await transaction.get(metadataRef);
-      const customerDoc = await transaction.get(customerRef);
-      const itemDocs = await Promise.all(selectedItemRefs.map(ref => transaction.get(ref)));
+      const [metadataDoc, customerDoc, ...itemDocs] = await Promise.all([
+        transaction.get(metadataRef),
+        transaction.get(customerRef),
+        ...selectedItemRefs.map(ref => transaction.get(ref)),
+      ]);
 
       if (createCustomerInTx) {
         transaction.set(customerRef, {
@@ -373,16 +329,56 @@ export async function addSale(
       );
       if (creditError) throw new Error(creditError);
 
+      let serverSubtotal = 0;
       const itemDocsMap: Record<string, { ref: any; data: Item; id: string }> = {};
-      itemDocs.forEach(docSnap => {
-        if (docSnap.exists()) {
-          itemDocsMap[docSnap.id] = {
-            ref: docSnap.ref,
-            data: docSnap.data() as Item,
-            id: docSnap.id,
-          };
+
+      for (let i = 0; i < itemDocs.length; i++) {
+        const snap = itemDocs[i];
+        if (!snap.exists()) {
+          throw new Error(`Item with id ${data.items[i].itemId} does not exist.`);
         }
-      });
+        const itemData = snap.data() as Item;
+        if (!resolveIsSalable(itemData)) {
+          throw new Error(`Item "${itemData.title}" is a non-salable asset and cannot be sold.`);
+        }
+        const customPrice = (data.items[i] as any).price;
+        const unitPrice =
+          customPrice !== undefined && customPrice !== null && !isNaN(Number(customPrice)) && Number(customPrice) >= 0
+            ? Number(customPrice)
+            : (Number(itemData.sellingPrice) || 0);
+
+        (data.items[i] as SaleItem).price = unitPrice;
+        serverSubtotal += unitPrice * Number(data.items[i].quantity);
+
+        itemDocsMap[snap.id] = {
+          ref: snap.ref,
+          data: itemData,
+          id: snap.id,
+        };
+      }
+
+      const discountError = validateDiscount(
+        data.discountType === 'percentage'
+          ? { type: 'percentage', value: Number(data.discountValue) || 0 }
+          : data.discountType === 'amount'
+            ? { type: 'amount', value: Number(data.discountValue) || 0 }
+            : { type: 'none' },
+        serverSubtotal
+      );
+      if (discountError) throw new Error(discountError);
+
+      const discountTotal = data.discountType === 'percentage'
+        ? serverSubtotal * ((Number(data.discountValue) || 0) / 100)
+        : data.discountType === 'amount' ? (Number(data.discountValue) || 0) : 0;
+      const effectiveBaseTotal = serverSubtotal - Math.min(serverSubtotal, discountTotal) + (Number(data.extraSales) || 0);
+      const payableTotal = data.total !== undefined && !isNaN(Number(data.total)) && Number(data.total) >= 0
+        ? Number(data.total)
+        : effectiveBaseTotal;
+      const paidError = validateAmountPaid(
+        data.paymentMethod === 'Split' ? Number(data.amountPaid) : undefined,
+        payableTotal
+      );
+      if (paidError) throw new Error(paidError);
 
       const lastSaleNumber = (metadataDoc.data() as Metadata)?.lastSaleNumber || 0;
       const newSaleNumber = lastSaleNumber + 1;

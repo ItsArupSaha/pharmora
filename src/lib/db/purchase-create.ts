@@ -10,9 +10,9 @@ import {
 import { invalidateAppData } from './data-version';
 import { stripUndefinedFields } from './firestore-payload';
 import { db } from '../firebase';
-import type { Item, Metadata, Purchase } from '../types';
+import type { Item, ItemBatch, Metadata, Purchase } from '../types';
 import { earlierExpiry } from '../batch-allocation';
-import { receivePurchaseBatch } from './batch-utils';
+import { batchesCollectionRef, receivePurchaseBatch } from './batch-utils';
 import { computePurchaseTotals, mergeReceivedStock, planPurchaseSettlements } from './purchase-calculation';
 import { resolveIsSalable } from '../item-flags';
 
@@ -20,11 +20,52 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
   if (!db || !userId) return { success: false, error: 'Database not connected' };
 
   try {
+      const userRef = doc(db!, 'users', userId);
+      const itemsCollection = collection(userRef, 'items');
+
+      const mappedItems = data.items.map(item => ({
+          ...item,
+          itemName: item.itemName.trim()
+      }));
+
+      // Pre-fetch all candidate item documents in parallel (1 concurrent round-trip)
+      const itemSnapshots = await Promise.all(
+          mappedItems.map(item => {
+              const trimmedName = item.itemName;
+              let q = query(itemsCollection, where("title", "==", trimmedName));
+              if (item.expiryDate) {
+                  q = query(itemsCollection, where("title", "==", trimmedName), where("expiryDate", "==", item.expiryDate));
+              }
+              return getDocs(q);
+          })
+      );
+
+      // Pre-load batches for all matched existing items in parallel
+      const existingItemIds = Array.from(
+          new Set(
+              itemSnapshots
+                  .filter(snap => !snap.empty)
+                  .map(snap => snap.docs[0].id)
+          )
+      );
+
+      const batchSnapshots = await Promise.all(
+          existingItemIds.map(async (itemId) => {
+              const snap = await getDocs(query(batchesCollectionRef(userId, itemId)));
+              return {
+                  itemId,
+                  batches: snap.docs.map(d => ({ ref: d.ref, data: d.data() as ItemBatch }))
+              };
+          })
+      );
+      const batchesByItemId: Record<string, Array<{ ref: any; data: ItemBatch }>> = {};
+      for (const b of batchSnapshots) {
+          batchesByItemId[b.itemId] = b.batches;
+      }
+
       const result = await runTransaction(db, async (transaction) => {
-          const userRef = doc(db!, 'users', userId);
           const metadataRef = doc(userRef, 'metadata', 'counters');
           const purchasesCollection = collection(userRef, 'purchases');
-          const itemsCollection = collection(userRef, 'items');
           const expensesCollection = collection(userRef, 'expenses');
           const transactionsCollection = collection(userRef, 'transactions');
           
@@ -46,10 +87,6 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
           });
 
           const newPurchaseRef = doc(purchasesCollection);
-          const mappedItems = data.items.map(item => ({
-              ...item,
-              itemName: item.itemName.trim()
-          }));
           const purchaseData = stripUndefinedFields({
               ...data,
               items: mappedItems,
@@ -65,13 +102,10 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
           transaction.set(newPurchaseRef, purchaseData);
           transaction.set(metadataRef, { lastPurchaseNumber: newPurchaseNumber }, { merge: true });
 
-          for (const item of mappedItems) {
+          for (let idx = 0; idx < mappedItems.length; idx++) {
+              const item = mappedItems[idx];
               const trimmedName = item.itemName;
-              let q = query(itemsCollection, where("title", "==", trimmedName));
-              if (item.expiryDate) {
-                  q = query(itemsCollection, where("title", "==", trimmedName), where("expiryDate", "==", item.expiryDate));
-              }
-              const bookSnapshot = await getDocs(q);
+              const bookSnapshot = itemSnapshots[idx];
               const capitalizedCost = Number(item.cost) * factor;
 
               if (!bookSnapshot.empty) {
@@ -109,14 +143,16 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
 
                   transaction.update(bookDoc.ref, updateData);
 
-                  // Receive the line into its batch (merge same batch number)
+                  // Receive the line into its batch (merge same batch number using preloaded batches)
+                  const itemBatches = batchesByItemId[bookDoc.ref.id] ||= [];
                   await receivePurchaseBatch(
                       userId,
                       transaction,
                       bookDoc.ref.id,
                       purchaseId,
                       item,
-                      capitalizedCost
+                      capitalizedCost,
+                      itemBatches
                   );
               } else {
                   const newItemRef = doc(itemsCollection);
@@ -145,13 +181,15 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
                   transaction.set(newItemRef, newItemData);
 
                   // Every received line gets a batch record for FEFO
+                  const itemBatches = batchesByItemId[newItemRef.id] ||= [];
                   await receivePurchaseBatch(
                       userId,
                       transaction,
                       newItemRef.id,
                       purchaseId,
                       item,
-                      capitalizedCost
+                      capitalizedCost,
+                      itemBatches
                   );
               }
           }

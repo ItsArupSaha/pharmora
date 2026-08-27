@@ -108,8 +108,10 @@ export async function updatePurchase(
           .map(docSnap => docSnap.ref);
       };
 
-      const relatedExpenseRefs = await matchLedgerDocs(collection(userRef, 'expenses'));
-      const relatedTransactionRefs = await matchLedgerDocs(collection(userRef, 'transactions'));
+      const [relatedExpenseRefs, relatedTransactionRefs] = await Promise.all([
+        matchLedgerDocs(collection(userRef, 'expenses')),
+        matchLedgerDocs(collection(userRef, 'transactions')),
+      ]);
 
       // Find all items affected by either old or new purchase, keyed by title + expiry
       const itemsCollection = collection(userRef, 'items');
@@ -117,20 +119,28 @@ export async function updatePurchase(
       oldPurchase.items.forEach(item => itemKeys.add(itemKey(item)));
       data.items.forEach(item => itemKeys.add(itemKey(item)));
 
-      const itemDocsMap: Record<string, { ref: any; data: any }> = {};
-      for (const key of itemKeys) {
+      const itemKeyList = Array.from(itemKeys);
+      const itemDocSnaps = await Promise.all(
+        itemKeyList.map(key => {
           const [name, expiryDate] = key.split('||');
           let q: ReturnType<typeof query> = query(itemsCollection, where("title", "==", name));
           if (expiryDate) {
-              q = query(itemsCollection, where("title", "==", name), where("expiryDate", "==", expiryDate));
+            q = query(itemsCollection, where("title", "==", name), where("expiryDate", "==", expiryDate));
           }
-          const snap = await getDocs(q);
-          if (!snap.empty) {
-              itemDocsMap[key] = {
-                  ref: snap.docs[0].ref,
-                  data: snap.docs[0].data(),
-              };
-          }
+          return getDocs(q);
+        })
+      );
+
+      const itemDocsMap: Record<string, { ref: any; data: any }> = {};
+      for (let i = 0; i < itemKeyList.length; i++) {
+        const key = itemKeyList[i];
+        const snap = itemDocSnaps[i];
+        if (!snap.empty) {
+          itemDocsMap[key] = {
+            ref: snap.docs[0].ref,
+            data: snap.docs[0].data(),
+          };
+        }
       }
 
       const { totalAmount, vatAmount, finalAmount, factor } = computePurchaseTotals({
@@ -145,15 +155,14 @@ export async function updatePurchase(
           const metadataDoc = await transaction.get(metadataRef);
           const batchLedger = new BatchWriteLedger(userId, transaction);
 
-          // Get current state of each item inside the transaction to prevent race conditions
+          // Get current state of each item inside the transaction to prevent race conditions (in parallel)
+          const validItemEntries = Array.from(itemKeys).map(key => ({ key, ref: itemDocsMap[key]?.ref })).filter(e => !!e.ref);
+          const itemSnapsInTx = await Promise.all(validItemEntries.map(e => transaction.get(e.ref)));
           const currentItemDataMap: Record<string, any> = {};
-          for (const key of itemKeys) {
-              const itemRef = itemDocsMap[key]?.ref;
-              if (itemRef) {
-                  const snap = await transaction.get(itemRef);
-                  if (snap.exists()) {
-                      currentItemDataMap[key] = snap.data();
-                  }
+          for (let i = 0; i < validItemEntries.length; i++) {
+              const snap = itemSnapsInTx[i];
+              if (snap.exists()) {
+                  currentItemDataMap[validItemEntries[i].key] = snap.data();
               }
           }
 
