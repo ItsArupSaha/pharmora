@@ -16,4 +16,5 @@ export * from './db/sales-returns';
 export * from './db/transactions';
 export * from './db/capital';
 export * from './db/security';
+export * from './db/batch-migration';
 

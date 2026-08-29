@@ -5,6 +5,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { deleteCategory, deleteItem, getCategories, getItems } from '@/lib/actions';
 import type { Category, Item } from '@/lib/types';
+import { exportInventoryPdf, exportInventoryXlsx } from '@/components/items/items-export-utils';
 import { useClosingStock } from './use-closing-stock';
 import { useItemFilters } from './use-item-filters';
 
@@ -109,13 +110,41 @@ export function useItemManagement(userId: string) {
     });
   }, [allItems]);
 
+  // Extract unique companies
+  const companies = React.useMemo(() => {
+    const set = new Set<string>();
+    allItems.forEach((item) => {
+      if (item.company && item.company.trim()) {
+        set.add(item.company.trim());
+      }
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [allItems]);
+
   // Compose sub-hooks for specific tasks
   const closingStock = useClosingStock({ userId, authUser });
   const itemFilters = useItemFilters({ allItems });
 
+  // Direct inventory exports
+  const handleDownloadInventoryPdf = () => {
+    exportInventoryPdf(
+      itemFilters.filteredAndSortedItems,
+      authUser,
+      itemFilters.selectedCompanyFilter
+    );
+  };
+
+  const handleDownloadInventoryXlsx = () => {
+    exportInventoryXlsx(
+      itemFilters.filteredAndSortedItems,
+      itemFilters.selectedCompanyFilter
+    );
+  };
+
   return {
     allItems,
     categories,
+    companies,
     isInitialLoading,
     isItemDialogOpen,
     setIsItemDialogOpen,
@@ -133,15 +162,18 @@ export function useItemManagement(userId: string) {
     handleDeleteCategory,
     expiringAndExpiredMedicines,
 
+    // Direct inventory downloads
+    handleDownloadInventoryPdf,
+    handleDownloadInventoryXlsx,
+
     // Delegate closing stock state/actions
     isStockDialogOpen: closingStock.isStockDialogOpen,
     setIsStockDialogOpen: closingStock.setIsStockDialogOpen,
     closingStockDate: closingStock.closingStockDate,
     setClosingStockDate: closingStock.setClosingStockDate,
-    closingStockData: closingStock.closingStockData,
-    setClosingStockData: closingStock.setClosingStockData,
+    closingStockCompanyFilter: closingStock.selectedCompanyFilter,
+    setClosingStockCompanyFilter: closingStock.setSelectedCompanyFilter,
     isCalculating: closingStock.isCalculating,
-    handleCalculateClosingStock: closingStock.handleCalculateClosingStock,
     handleDownloadClosingStockPdf: closingStock.handleDownloadClosingStockPdf,
     handleDownloadClosingStockXlsx: closingStock.handleDownloadClosingStockXlsx,
 
@@ -150,6 +182,8 @@ export function useItemManagement(userId: string) {
     setSearchQuery: itemFilters.setSearchQuery,
     selectedCategoryFilter: itemFilters.selectedCategoryFilter,
     setSelectedCategoryFilter: itemFilters.setSelectedCategoryFilter,
+    selectedCompanyFilter: itemFilters.selectedCompanyFilter,
+    setSelectedCompanyFilter: itemFilters.setSelectedCompanyFilter,
     selectedStatusFilter: itemFilters.selectedStatusFilter,
     setSelectedStatusFilter: itemFilters.setSelectedStatusFilter,
     sortBy: itemFilters.sortBy,

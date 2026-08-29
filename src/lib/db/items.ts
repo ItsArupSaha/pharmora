@@ -62,6 +62,23 @@ export async function getItems(userId: string): Promise<Item[]> {
       }));
     }
 
+    // Auto-migrate legacy docs without embedded batches array in background
+    const unmigratedBatchItems = items.filter(item => !item.batches && (Number(item.stock) || 0) > 0);
+    if (unmigratedBatchItems.length > 0) {
+      Promise.all(unmigratedBatchItems.map(async (item) => {
+        try {
+          const subBatches = await fetchItemBatches(userId, item.id);
+          if (subBatches.length > 0) {
+            const itemRef = doc(db!, 'users', userId, 'items', item.id);
+            await updateDoc(itemRef, { batches: subBatches });
+            item.batches = subBatches;
+          }
+        } catch (e) {
+          console.error(`Failed to auto-migrate batches for item ${item.id}:`, e);
+        }
+      })).catch(() => {});
+    }
+
     return items;
   }, { version });
 }
@@ -123,34 +140,38 @@ export async function updateItem(userId: string, id: string, data: Omit<Item, 'i
   if (!db || !userId) return;
   const salable = resolveIsSalable(data);
   const itemRef = doc(db, 'users', userId, 'items', id);
-  await updateDoc(itemRef, stripUndefinedFields({
-    ...data,
-    isSalable: salable,
-    sellingPrice: salable ? data.sellingPrice : 0,
-  }));
 
   // Manual stock edits must flow into batches when batch tracking is active,
   // otherwise the next FEFO sale would see a stale quantity.
-  const batches = await fetchItemBatches(userId, id);
+  const batches = data.batches || await fetchItemBatches(userId, id);
+  let updatedBatches = batches;
+
   if (batches.length > 0) {
     const delta = data.stock - sumBatchQuantities(batches);
     if (delta !== 0) {
       const { updates, surplus } = distributeStockDelta(batches, delta);
-      for (const u of updates) {
-        await updateDoc(batchDocRef(userId, id, u.id), { quantity: u.quantity });
-      }
+      const updateMap = new Map(updates.map(u => [u.id, u.quantity]));
+      updatedBatches = batches.map(b => updateMap.has(b.id) ? { ...b, quantity: updateMap.get(b.id)! } : b);
       if (surplus > 0) {
-        await addDoc(batchesCollectionRef(userId, id), {
+        updatedBatches.push({
+          id: `b_adj_${Date.now()}`,
           batchNo: 'ADJUSTMENT',
           expiryDate: null,
           quantity: surplus,
           initialQuantity: surplus,
           cost: data.productionPrice || 0,
-          createdAt: Timestamp.now(),
         });
       }
     }
   }
+
+  await updateDoc(itemRef, stripUndefinedFields({
+    ...data,
+    isSalable: salable,
+    sellingPrice: salable ? data.sellingPrice : 0,
+    batches: updatedBatches,
+  }));
+
   await invalidateAppData(userId);
 }
 

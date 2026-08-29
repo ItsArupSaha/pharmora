@@ -16,6 +16,7 @@ import type { Metadata, Purchase, PurchaseItem } from '../types';
 import { resolveIsSalable } from '../item-flags';
 import { earlierExpiry } from '../batch-allocation';
 import { BatchWriteLedger } from './batch-ledger';
+import type { ItemBatchWithId } from './batch-utils';
 import { invalidateAppData } from './data-version';
 import { stripUndefinedFields } from './firestore-payload';
 import {
@@ -153,7 +154,6 @@ export async function updatePurchase(
       const result = await runTransaction(db, async (transaction) => {
           const metadataRef = doc(userRef, 'metadata', 'counters');
           const metadataDoc = await transaction.get(metadataRef);
-          const batchLedger = new BatchWriteLedger(userId, transaction);
 
           // Get current state of each item inside the transaction to prevent race conditions (in parallel)
           const validItemEntries = Array.from(itemKeys).map(key => ({ key, ref: itemDocsMap[key]?.ref })).filter(e => !!e.ref);
@@ -165,6 +165,16 @@ export async function updatePurchase(
                   currentItemDataMap[validItemEntries[i].key] = snap.data();
               }
           }
+
+          const initialBatches: Record<string, ItemBatchWithId[]> = {};
+          for (const key of itemKeys) {
+              const itemData = currentItemDataMap[key];
+              const itemRef = itemDocsMap[key]?.ref;
+              if (itemRef && itemData?.batches) {
+                  initialBatches[itemRef.id] = itemData.batches;
+              }
+          }
+          const batchLedger = new BatchWriteLedger(userId, transaction, initialBatches);
 
           // For each affected key, reconcile stock/cost against old and new invoice lines
           const oldItemsByKey: Record<string, PurchaseItem[]> = {};
@@ -226,6 +236,7 @@ export async function updatePurchase(
 
                   if (batchesWereActive) {
                       updateData.stock = await batchLedger.totalQuantity(itemRef.id);
+                      updateData.batches = batchLedger.getUpdatedBatches(itemRef.id);
                   }
 
                   transaction.update(itemRef, updateData);
@@ -236,6 +247,17 @@ export async function updatePurchase(
                   const sellingPrice = salable
                     ? (newItem.sellingPrice && newItem.sellingPrice > 0 ? newItem.sellingPrice : capitalizedCost * 1.5)
                     : 0;
+
+                  const initialBatch = {
+                      id: `b_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+                      batchNo: (newItem.batchNo || '').trim() || `AUTO-${purchaseId}`,
+                      expiryDate: newItem.expiryDate ?? null,
+                      quantity: Number(newItem.quantity) || 0,
+                      initialQuantity: Number(newItem.quantity) || 0,
+                      cost: capitalizedCost,
+                      purchaseId,
+                  };
+
                   const newItemData: any = {
                       title: name,
                       categoryId: newItem.categoryId,
@@ -244,7 +266,8 @@ export async function updatePurchase(
                       productionPrice: reconciled.productionPrice,
                       sellingPrice: sellingPrice,
                       isSalable: salable,
-                      ignoredWarning: false
+                      ignoredWarning: false,
+                      batches: [initialBatch],
                   };
                   if (newItem.medicineGroup) newItemData.medicineGroup = newItem.medicineGroup;
                   if (newItem.company) newItemData.company = newItem.company;

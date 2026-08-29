@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { AddItemsDialog } from './items/add-items-dialog';
 import { AddCategoryDialog } from './items/add-category-dialog';
 import { ItemsTable } from './items/items-table';
-import { ClosingStockResults } from './items/closing-stock-results';
 import { useItemManagement } from '@/hooks/use-item-management';
 import { ItemManagementHeader } from './items/item-management-header';
 import { ItemManagementControls } from './items/item-management-controls';
@@ -18,6 +17,7 @@ interface ItemManagementProps {
 export default function ItemManagement({ userId }: ItemManagementProps) {
   const {
     categories,
+    companies,
     isInitialLoading,
     isItemDialogOpen,
     setIsItemDialogOpen,
@@ -29,14 +29,16 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
     editingCategory,
     closingStockDate,
     setClosingStockDate,
-    closingStockData,
-    setClosingStockData,
+    closingStockCompanyFilter,
+    setClosingStockCompanyFilter,
     isCalculating,
     isPending,
     searchQuery,
     setSearchQuery,
     selectedCategoryFilter,
     setSelectedCategoryFilter,
+    selectedCompanyFilter,
+    setSelectedCompanyFilter,
     selectedStatusFilter,
     setSelectedStatusFilter,
     sortBy,
@@ -47,10 +49,12 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
     handleAddNewItem,
     handleAddNewCategory,
     handleDeleteItem,
-    handleCalculateClosingStock,
+    handleDownloadInventoryPdf,
+    handleDownloadInventoryXlsx,
     handleDownloadClosingStockPdf,
     handleDownloadClosingStockXlsx,
     expiringAndExpiredMedicines,
+    filteredAndSortedItems,
     displayedItems,
     hasMore,
     handleLoadMore,
@@ -64,8 +68,15 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
         setIsStockDialogOpen={setIsStockDialogOpen}
         closingStockDate={closingStockDate}
         setClosingStockDate={setClosingStockDate}
-        handleCalculateClosingStock={handleCalculateClosingStock}
+        handleDownloadClosingStockPdf={handleDownloadClosingStockPdf}
+        handleDownloadClosingStockXlsx={handleDownloadClosingStockXlsx}
         isCalculating={isCalculating}
+        companies={companies}
+        selectedCompany={closingStockCompanyFilter}
+        onCompanyChange={setClosingStockCompanyFilter}
+        onDownloadInventoryPdf={handleDownloadInventoryPdf}
+        onDownloadInventoryXlsx={handleDownloadInventoryXlsx}
+        hasItemsToDownload={filteredAndSortedItems.length > 0}
         handleAddNewItem={handleAddNewItem}
         loadData={loadData}
       />
@@ -96,15 +107,6 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
           </div>
         )}
 
-        {/* Closing Stock Section */}
-        <ClosingStockResults
-          closingStockData={closingStockData}
-          closingStockDate={closingStockDate}
-          onDownloadPdf={handleDownloadClosingStockPdf}
-          onDownloadXlsx={handleDownloadClosingStockXlsx}
-          onClear={() => setClosingStockData([])}
-        />
-
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-semibold">Current Inventory</h3>
         </div>
@@ -116,6 +118,9 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
           selectedCategoryFilter={selectedCategoryFilter}
           setSelectedCategoryFilter={setSelectedCategoryFilter}
           categories={categories}
+          companies={companies}
+          selectedCompanyFilter={selectedCompanyFilter}
+          setSelectedCompanyFilter={setSelectedCompanyFilter}
           selectedStatusFilter={selectedStatusFilter}
           setSelectedStatusFilter={setSelectedStatusFilter}
           sortBy={sortBy}

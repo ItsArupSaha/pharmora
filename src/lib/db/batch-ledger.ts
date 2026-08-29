@@ -2,7 +2,7 @@ import { getDocs, query, type DocumentData, type DocumentReference, type Transac
 import { db } from '../firebase';
 import type { ItemBatch, PurchaseItem } from '../types';
 import { earlierExpiry, mergeBatchCost } from '../batch-allocation';
-import { batchesCollectionRef, buildBatchData, newBatchDocRef } from './batch-utils';
+import { batchesCollectionRef, batchDocRef, buildBatchData, newBatchDocRef, type ItemBatchWithId } from './batch-utils';
 
 type StagedBatch = {
   ref: DocumentReference<DocumentData>;
@@ -28,8 +28,24 @@ export class BatchWriteLedger {
 
   constructor(
     private userId: string,
-    private transaction: Transaction
-  ) {}
+    private transaction: Transaction,
+    private initialBatches?: Record<string, ItemBatchWithId[]>
+  ) {
+    if (initialBatches) {
+      for (const [itemId, batches] of Object.entries(initialBatches)) {
+        if (batches && Array.isArray(batches)) {
+          this.entriesByItem.set(
+            itemId,
+            batches.map((b) => ({
+              ref: batchDocRef(userId, itemId, b.id || `b_${Date.now()}`),
+              data: { ...b },
+              existed: true,
+            }))
+          );
+        }
+      }
+    }
+  }
 
   async hasCommittedBatches(itemId: string): Promise<boolean> {
     return (await this.entries(itemId)).some((entry) => entry.existed);
@@ -80,6 +96,16 @@ export class BatchWriteLedger {
       (sum, entry) => sum + Math.max(0, Number(entry.data.quantity) || 0),
       0
     );
+  }
+
+  getUpdatedBatches(itemId: string): ItemBatchWithId[] {
+    const entries = this.entriesByItem.get(itemId) || [];
+    return entries
+      .filter((e) => Number(e.data.quantity) > 0)
+      .map((e) => ({
+        ...e.data,
+        id: e.ref.id || `b_${Date.now()}`,
+      }));
   }
 
   flush(): void {

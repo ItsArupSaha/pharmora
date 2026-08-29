@@ -12,7 +12,7 @@ import { stripUndefinedFields } from './firestore-payload';
 import { db } from '../firebase';
 import type { Item, ItemBatch, Metadata, Purchase } from '../types';
 import { earlierExpiry } from '../batch-allocation';
-import { batchesCollectionRef, receivePurchaseBatch } from './batch-utils';
+import { fetchItemBatches, mergePurchaseBatchIntoList, type ItemBatchWithId } from './batch-utils';
 import { computePurchaseTotals, mergeReceivedStock, planPurchaseSettlements } from './purchase-calculation';
 import { resolveIsSalable } from '../item-flags';
 
@@ -40,28 +40,18 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
           })
       );
 
-      // Pre-load batches for all matched existing items in parallel
-      const existingItemIds = Array.from(
-          new Set(
-              itemSnapshots
-                  .filter(snap => !snap.empty)
-                  .map(snap => snap.docs[0].id)
-          )
-      );
+      // Pre-load batches for any legacy items that haven't been embedded yet
+      const existingItemSnapshots = itemSnapshots
+          .filter(snap => !snap.empty)
+          .map(snap => snap.docs[0]);
 
-      const batchSnapshots = await Promise.all(
-          existingItemIds.map(async (itemId) => {
-              const snap = await getDocs(query(batchesCollectionRef(userId, itemId)));
-              return {
-                  itemId,
-                  batches: snap.docs.map(d => ({ ref: d.ref, data: d.data() as ItemBatch }))
-              };
+      const batchMap: Record<string, ItemBatchWithId[]> = {};
+      await Promise.all(
+          existingItemSnapshots.map(async (docSnap) => {
+              const itemData = docSnap.data() as Item;
+              batchMap[docSnap.id] = await fetchItemBatches(userId, docSnap.id, itemData);
           })
       );
-      const batchesByItemId: Record<string, Array<{ ref: any; data: ItemBatch }>> = {};
-      for (const b of batchSnapshots) {
-          batchesByItemId[b.itemId] = b.batches;
-      }
 
       const result = await runTransaction(db, async (transaction) => {
           const metadataRef = doc(userRef, 'metadata', 'counters');
@@ -110,7 +100,7 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
 
               if (!bookSnapshot.empty) {
                   const bookDoc = bookSnapshot.docs[0];
-                  const bookData = bookDoc.data();
+                  const bookData = bookDoc.data() as Item;
                   const { newStock, newProductionPrice } = mergeReceivedStock(
                       Number(bookData.stock) || 0,
                       Number(bookData.productionPrice) || 0,
@@ -127,12 +117,22 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
                                                 : Math.max(bookData.sellingPrice || 0, newProductionPrice * 1.5))
                                             : 0;
                   
+                  const existingBatches = batchMap[bookDoc.id] || [];
+                  const updatedBatches = mergePurchaseBatchIntoList(
+                      existingBatches,
+                      purchaseId,
+                      item,
+                      capitalizedCost
+                  );
+                  batchMap[bookDoc.id] = updatedBatches;
+
                   const updateData: any = {
                       stock: newStock,
                       productionPrice: newProductionPrice,
                       sellingPrice: newSellingPrice,
                       isSalable: salable,
-                      ignoredWarning: false
+                      ignoredWarning: false,
+                      batches: updatedBatches,
                   };
                   if (item.medicineGroup) updateData.medicineGroup = item.medicineGroup;
                   if (item.company) updateData.company = item.company;
@@ -142,18 +142,6 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
                   if (item.location) updateData.location = item.location;
 
                   transaction.update(bookDoc.ref, updateData);
-
-                  // Receive the line into its batch (merge same batch number using preloaded batches)
-                  const itemBatches = batchesByItemId[bookDoc.ref.id] ||= [];
-                  await receivePurchaseBatch(
-                      userId,
-                      transaction,
-                      bookDoc.ref.id,
-                      purchaseId,
-                      item,
-                      capitalizedCost,
-                      itemBatches
-                  );
               } else {
                   const newItemRef = doc(itemsCollection);
                   const salable = resolveIsSalable({ categoryName: item.categoryName });
@@ -162,6 +150,16 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
                                         ? (item.sellingPrice && item.sellingPrice > 0 ? item.sellingPrice : capitalizedCost * 1.5)
                                         : 0;
                   
+                  const initialBatch = {
+                      id: `b_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+                      batchNo: (item.batchNo || '').trim() || `AUTO-${purchaseId}`,
+                      expiryDate: item.expiryDate ?? null,
+                      quantity: Number(item.quantity) || 0,
+                      initialQuantity: Number(item.quantity) || 0,
+                      cost: capitalizedCost,
+                      purchaseId,
+                  };
+
                   const newItemData: any = {
                       title: trimmedName,
                       categoryId: item.categoryId,
@@ -170,7 +168,8 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
                       productionPrice: capitalizedCost,
                       sellingPrice: sellingPrice,
                       isSalable: salable,
-                      ignoredWarning: false
+                      ignoredWarning: false,
+                      batches: [initialBatch],
                   };
 
                   if (item.medicineGroup) newItemData.medicineGroup = item.medicineGroup;
@@ -179,18 +178,7 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
                   if (item.location) newItemData.location = item.location;
 
                   transaction.set(newItemRef, newItemData);
-
-                  // Every received line gets a batch record for FEFO
-                  const itemBatches = batchesByItemId[newItemRef.id] ||= [];
-                  await receivePurchaseBatch(
-                      userId,
-                      transaction,
-                      newItemRef.id,
-                      purchaseId,
-                      item,
-                      capitalizedCost,
-                      itemBatches
-                  );
+                  batchMap[newItemRef.id] = [initialBatch];
               }
           }
 

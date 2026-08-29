@@ -21,6 +21,9 @@ interface ItemManagementControlsProps {
   selectedCategoryFilter: string;
   setSelectedCategoryFilter: (category: string) => void;
   categories: Category[];
+  companies?: string[];
+  selectedCompanyFilter?: string;
+  setSelectedCompanyFilter?: (company: string) => void;
   selectedStatusFilter: string;
   setSelectedStatusFilter: (status: string) => void;
   sortBy: string;
@@ -34,6 +37,9 @@ export function ItemManagementControls({
   selectedCategoryFilter,
   setSelectedCategoryFilter,
   categories,
+  companies = [],
+  selectedCompanyFilter = 'all',
+  setSelectedCompanyFilter,
   selectedStatusFilter,
   setSelectedStatusFilter,
   sortBy,
@@ -90,6 +96,28 @@ export function ItemManagementControls({
             </SelectContent>
           </Select>
 
+          {companies.length > 0 && setSelectedCompanyFilter && (
+            <Select
+              value={selectedCompanyFilter}
+              onValueChange={(val) => {
+                setSelectedCompanyFilter(val);
+                setVisibleCount(10);
+              }}
+            >
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="All Companies" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Companies</SelectItem>
+                {companies.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {c}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
           <Select
             value={selectedStatusFilter}
             onValueChange={(val) => {
@@ -109,7 +137,7 @@ export function ItemManagementControls({
           </Select>
 
           <Select value={sortBy} onValueChange={setSortBy}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-[170px]">
               <SelectValue placeholder="Sort By" />
             </SelectTrigger>
             <SelectContent>
@@ -126,7 +154,7 @@ export function ItemManagementControls({
       </div>
 
       <div className="flex flex-wrap items-center gap-2 mb-4 text-sm bg-muted/20 p-2.5 rounded-lg border border-dashed">
-        <span className="text-muted-foreground font-medium mr-1">Quick Sort Medicine:</span>
+        <span className="text-muted-foreground font-medium mr-1">Quick Sort:</span>
         {!isStockMode && (
           <Button
             variant={sortBy === 'group-asc' ? 'default' : 'outline'}

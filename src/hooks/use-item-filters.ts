@@ -11,6 +11,7 @@ interface UseItemFiltersProps {
 export function useItemFilters({ allItems }: UseItemFiltersProps) {
   const [searchQuery, setSearchQuery] = React.useState('');
   const [selectedCategoryFilter, setSelectedCategoryFilter] = React.useState('all');
+  const [selectedCompanyFilter, setSelectedCompanyFilter] = React.useState('all');
   const [selectedStatusFilter, setSelectedStatusFilter] = React.useState('all');
   const [sortBy, setSortBy] = React.useState('title-asc');
   const [visibleCount, setVisibleCount] = React.useState(10);
@@ -45,6 +46,12 @@ export function useItemFilters({ allItems }: UseItemFiltersProps) {
 
     if (selectedCategoryFilter !== 'all') {
       result = result.filter((item) => item.categoryId === selectedCategoryFilter);
+    }
+
+    if (selectedCompanyFilter !== 'all') {
+      result = result.filter(
+        (item) => (item.company || '').trim().toLowerCase() === selectedCompanyFilter.toLowerCase()
+      );
     }
 
     const now = new Date();
@@ -102,7 +109,7 @@ export function useItemFilters({ allItems }: UseItemFiltersProps) {
     });
 
     return result;
-  }, [allItems, searchQuery, selectedCategoryFilter, selectedStatusFilter, sortBy]);
+  }, [allItems, searchQuery, selectedCategoryFilter, selectedCompanyFilter, selectedStatusFilter, sortBy]);
 
   const displayedItems = React.useMemo(() => {
     return filteredAndSortedItems.slice(0, visibleCount);
@@ -119,6 +126,8 @@ export function useItemFilters({ allItems }: UseItemFiltersProps) {
     setSearchQuery,
     selectedCategoryFilter,
     setSelectedCategoryFilter,
+    selectedCompanyFilter,
+    setSelectedCompanyFilter,
     selectedStatusFilter,
     setSelectedStatusFilter,
     sortBy,

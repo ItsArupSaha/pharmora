@@ -38,14 +38,14 @@ async function loadBatchesForSale(
   itemId: string,
   itemData: Item
 ): Promise<{ batches: SaleBatch[]; originalQuantities: Record<string, number> }> {
-  const batches: SaleBatch[] = (await fetchItemBatches(userId, itemId)).map(b => ({ ...b }));
+  const batches: SaleBatch[] = (await fetchItemBatches(userId, itemId, itemData)).map(b => ({ ...b }));
   const originalQuantities: Record<string, number> = {};
   for (const b of batches) originalQuantities[b.id] = b.quantity;
 
   const stock = Number(itemData.stock) || 0;
 
   if (batches.length === 0 && stock > 0) {
-    const ref = newBatchDocRef(userId, itemId);
+    const legacyId = `b_legacy_${Date.now()}`;
     const legacy = buildBatchData({
       batchNo: 'LEGACY',
       expiryDate: itemData.expiryDate ?? null,
@@ -53,8 +53,8 @@ async function loadBatchesForSale(
       initialQuantity: stock,
       cost: Number(itemData.productionPrice) || 0,
     });
-    batches.push({ ...legacy, id: ref.id, isNew: true });
-    originalQuantities[ref.id] = 0;
+    batches.push({ ...legacy, id: legacyId, isNew: true });
+    originalQuantities[legacyId] = 0;
   }
 
   // Self-heal drift: stock recorded on the item beyond what batches account
@@ -63,7 +63,7 @@ async function loadBatchesForSale(
   if (batches.length > 0 && drift > 0) {
     let legacy = batches.find(b => b.batchNo === 'LEGACY');
     if (!legacy) {
-      const ref = newBatchDocRef(userId, itemId);
+      const legacyId = `b_legacy_${Date.now()}`;
       const data = buildBatchData({
         batchNo: 'LEGACY',
         expiryDate: itemData.expiryDate ?? null,
@@ -71,9 +71,9 @@ async function loadBatchesForSale(
         initialQuantity: 0,
         cost: Number(itemData.productionPrice) || 0,
       });
-      legacy = { ...data, id: ref.id, isNew: true };
+      legacy = { ...data, id: legacyId, isNew: true };
       batches.push(legacy);
-      originalQuantities[ref.id] = 0;
+      originalQuantities[legacyId] = 0;
     }
     legacy.quantity += drift;
   }
@@ -96,8 +96,7 @@ type BatchRestorePlan = {
 /**
  * FEFO deduction shared by addSale and updateSale: validates stock against
  * live batch quantities, consumes earliest-expiry batches first, writes the
- * per-batch decrements plus the item stock total, and freezes per-unit cost
- * at sale time on each line's allocation.
+ * updated stock and embedded batches directly to the item document in 1 atomic write.
  */
 async function deductSaleLinesFEFO(
   transaction: Transaction,
@@ -108,7 +107,7 @@ async function deductSaleLinesFEFO(
   const itemsWithPrices: SaleItem[] = [];
   let totalProductionCost = 0;
 
-  // Pre-load all unique items' batches in parallel (1 concurrent network request)
+  // Pre-load all unique items' batches (uses in-memory embedded batches instantly)
   const uniqueItemIds = Array.from(new Set(saleItems.map(si => si.itemId)));
   const batchResults = await Promise.all(
     uniqueItemIds.map(async (itemId) => {
@@ -160,26 +159,21 @@ async function deductSaleLinesFEFO(
     }
 
     const newStockTotal = effectiveStock - qtyRequested;
-    transaction.update(itemState.ref, { stock: newStockTotal });
     itemState.data.stock = newStockTotal; // keep local state fresh for duplicate lines
     totalProductionCost += lineCost;
 
     itemsWithPrices.push({ ...saleItem, price, batches: allocations });
   }
 
-  // Persist every batch change once, after all lines are allocated: virtual
-  // LEGACY entries are created, existing batches get their final quantity.
-  for (const [itemId, batches] of Object.entries(batchesByItem)) {
-    const originals = originalsByItem[itemId];
-    for (const batch of batches) {
-      const ref = batchDocRef(userId, itemId, batch.id);
-      if (batch.isNew) {
-        const { id: _id, isNew: _isNew, ...data } = batch;
-        transaction.set(ref, data);
-      } else if (batch.quantity !== originals[batch.id]) {
-        transaction.update(ref, { quantity: batch.quantity });
-      }
-    }
+  // Persist each item's stock and embedded batches in 1 atomic transaction write per item
+  for (const itemId of uniqueItemIds) {
+    const itemState = itemDocsMap[itemId];
+    if (!itemState) continue;
+    const finalBatches = (batchesByItem[itemId] || []).map(({ isNew, ...b }) => b);
+    transaction.update(itemState.ref, {
+      stock: itemState.data.stock,
+      batches: finalBatches,
+    });
   }
 
   return { itemsWithPrices, totalProductionCost };

@@ -82,6 +82,7 @@ export type Item = {
   stock: number;
   ignoredWarning?: boolean;
   isSalable?: boolean; // false for owned equipment (assets/surgicals); defaults true
+  batches?: (ItemBatch & { id: string })[]; // Embedded batches for ultra-fast multi-expiry & FEFO
 };
 
 export type ClosingStock = Item & {
