@@ -24,24 +24,18 @@ export function useItemFilters({ allItems }: UseItemFiltersProps) {
       const q = searchQuery.trim();
       const qLower = q.toLowerCase();
       
-      let matched = result.filter(
+      result = result.filter(
         (item) =>
-          item.title.toLowerCase().includes(qLower) ||
-          item.categoryName.toLowerCase().includes(qLower) ||
+          (item.title || '').toLowerCase().includes(qLower) ||
+          (item.categoryName || '').toLowerCase().includes(qLower) ||
           (item.medicineGroup && item.medicineGroup.toLowerCase().includes(qLower)) ||
-          (item.company && item.company.toLowerCase().includes(qLower))
+          (item.company && item.company.toLowerCase().includes(qLower)) ||
+          (item.location && item.location.toLowerCase().includes(qLower)) ||
+          isFuzzyMatch(item.title, q) ||
+          isFuzzyMatch(item.categoryName, q) ||
+          (item.medicineGroup && isFuzzyMatch(item.medicineGroup, q)) ||
+          (item.company && isFuzzyMatch(item.company, q))
       );
-
-      if (matched.length === 0) {
-        matched = result.filter(
-          (item) =>
-            isFuzzyMatch(item.title, q) ||
-            isFuzzyMatch(item.categoryName, q) ||
-            (item.medicineGroup && isFuzzyMatch(item.medicineGroup, q)) ||
-            (item.company && isFuzzyMatch(item.company, q))
-        );
-      }
-      result = matched;
     }
 
     if (selectedCategoryFilter !== 'all') {

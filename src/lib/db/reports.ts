@@ -12,11 +12,12 @@ import { getSales } from './sales';
 export async function calculateClosingStock(userId: string, closingStockDate: Date): Promise<ClosingStock[]> {
     const [allItems, allSales] = await Promise.all([getItems(userId), getSales(userId)]);
 
-    const salesAfterDate = allSales.filter((s: any) => new Date(s.date) > closingStockDate);
+    const salesAfterDate = allSales.filter((s: any) => s.date && new Date(s.date) > closingStockDate);
 
     const calculatedData = allItems.map((item: any) => {
         const quantitySoldAfter = salesAfterDate.reduce((total: number, sale: any) => {
-            const saleItem = sale.items.find((i: any) => i.itemId === item.id);
+            const saleItems = Array.isArray(sale.items) ? sale.items : [];
+            const saleItem = saleItems.find((i: any) => i.itemId === item.id);
             return total + (saleItem ? Number(saleItem.quantity) || 0 : 0);
         }, 0);
         

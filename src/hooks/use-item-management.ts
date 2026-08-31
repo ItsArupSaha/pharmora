@@ -127,16 +127,34 @@ export function useItemManagement(userId: string) {
 
   // Direct inventory exports
   const handleDownloadInventoryPdf = () => {
+    const itemsToExport =
+      itemFilters.selectedCompanyFilter && itemFilters.selectedCompanyFilter !== 'all'
+        ? allItems.filter(
+            (item) =>
+              (item.company || '').trim().toLowerCase() ===
+              itemFilters.selectedCompanyFilter.toLowerCase()
+          )
+        : allItems;
+
     exportInventoryPdf(
-      itemFilters.filteredAndSortedItems,
+      itemsToExport,
       authUser,
       itemFilters.selectedCompanyFilter
     );
   };
 
   const handleDownloadInventoryXlsx = () => {
+    const itemsToExport =
+      itemFilters.selectedCompanyFilter && itemFilters.selectedCompanyFilter !== 'all'
+        ? allItems.filter(
+            (item) =>
+              (item.company || '').trim().toLowerCase() ===
+              itemFilters.selectedCompanyFilter.toLowerCase()
+          )
+        : allItems;
+
     exportInventoryXlsx(
-      itemFilters.filteredAndSortedItems,
+      itemsToExport,
       itemFilters.selectedCompanyFilter
     );
   };

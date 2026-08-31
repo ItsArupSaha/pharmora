@@ -16,6 +16,7 @@ interface ItemManagementProps {
 
 export default function ItemManagement({ userId }: ItemManagementProps) {
   const {
+    allItems,
     categories,
     companies,
     isInitialLoading,
@@ -76,7 +77,7 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
         onCompanyChange={setClosingStockCompanyFilter}
         onDownloadInventoryPdf={handleDownloadInventoryPdf}
         onDownloadInventoryXlsx={handleDownloadInventoryXlsx}
-        hasItemsToDownload={filteredAndSortedItems.length > 0}
+        hasItemsToDownload={allItems.length > 0}
         handleAddNewItem={handleAddNewItem}
         loadData={loadData}
       />
