@@ -25,7 +25,6 @@ interface AddItemsDialogProps {
   editingItem: Item | null;
   categories: Category[];
   onSuccess: () => void;
-  onAddCategoryClick: () => void;
 }
 
 export function AddItemsDialog({
@@ -35,7 +34,6 @@ export function AddItemsDialog({
   editingItem,
   categories,
   onSuccess,
-  onAddCategoryClick,
 }: AddItemsDialogProps) {
   const {
     form,
@@ -79,6 +77,7 @@ export function AddItemsDialog({
                 form={form}
                 existingItems={existingItems}
                 companyFieldName="company"
+                autoFillLocation
               />
               <Separator />
 
@@ -90,9 +89,9 @@ export function AddItemsDialog({
                     index={index}
                     categories={categories}
                     existingItems={existingItems}
-                    onAddCategoryClick={onAddCategoryClick}
                     onRemove={() => remove(index)}
                     disabledRemove={fields.length === 1}
+                    variant="stock"
                   />
                 ))}
               </div>

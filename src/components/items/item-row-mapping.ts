@@ -27,14 +27,6 @@ export const rowFromItem = (item: Item): ItemRowValues => ({
   sellingPrice: item.sellingPrice,
 });
 
-export function isAssetOrSurgicalCategory(
-  categories: Category[],
-  categoryId: string
-): boolean {
-  const name = categories.find((c) => c.id === categoryId)?.name.toLowerCase();
-  return name === 'assets' || name === 'surgicals';
-}
-
 export const rowToItemData = (
   row: ItemRowValues,
   categories: Category[]

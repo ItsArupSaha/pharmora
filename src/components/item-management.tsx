@@ -48,7 +48,6 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
     loadData,
     handleEditItem,
     handleAddNewItem,
-    handleAddNewCategory,
     handleDeleteItem,
     handleDownloadInventoryPdf,
     handleDownloadInventoryXlsx,
@@ -150,7 +149,6 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
         editingItem={editingItem}
         categories={categories}
         onSuccess={loadData}
-        onAddCategoryClick={handleAddNewCategory}
       />
 
       <AddCategoryDialog

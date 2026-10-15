@@ -40,7 +40,6 @@ export default function ExpiryAlerts({ userId }: ExpiryAlertsProps) {
     loadData,
     handleEditItem,
     handleDeleteItem,
-    handleAddNewCategory,
     handleLoadMore,
     handlePdf,
     handleXlsx,
@@ -116,7 +115,6 @@ export default function ExpiryAlerts({ userId }: ExpiryAlertsProps) {
         editingItem={editingItem}
         categories={categories}
         onSuccess={loadData}
-        onAddCategoryClick={handleAddNewCategory}
       />
 
       <AddCategoryDialog

@@ -12,12 +12,16 @@ interface SupplierFormFieldsProps {
   // The purchase form stores the company as "supplier"; other dialogs
   // (e.g. add-items) store it as "company".
   companyFieldName?: string;
+  // When enabled, resolving a company to one already in the inventory
+  // auto-fills the shelf/row with that company's recorded location.
+  autoFillLocation?: boolean;
 }
 
 export function SupplierFormFields({
   form,
   existingItems,
   companyFieldName = 'supplier',
+  autoFillLocation = false,
 }: SupplierFormFieldsProps) {
   const existingCompanies = React.useMemo(() => {
     if (!existingItems) return [];
@@ -30,8 +34,30 @@ export function SupplierFormFields({
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [existingItems]);
 
+  // Most frequent non-empty shelf location recorded for each company.
+  const locationByCompany = React.useMemo(() => {
+    const counts = new Map<string, Map<string, number>>();
+    existingItems.forEach((item) => {
+      const companyKey = item.company?.trim().toLowerCase();
+      const location = item.location?.trim();
+      if (!companyKey || !location) return;
+      const locations = counts.get(companyKey) ?? new Map<string, number>();
+      locations.set(location, (locations.get(location) ?? 0) + 1);
+      counts.set(companyKey, locations);
+    });
+    const resolved = new Map<string, string>();
+    counts.forEach((locations, companyKey) => {
+      const best = [...locations.entries()].sort(
+        (a, b) => b[1] - a[1] || a[0].localeCompare(b[0])
+      )[0][0];
+      resolved.set(companyKey, best);
+    });
+    return resolved;
+  }, [existingItems]);
+
   const supplierName = form.watch(companyFieldName) || '';
   const [showCompanySuggestions, setShowCompanySuggestions] = React.useState(false);
+  const autoFilledLocationRef = React.useRef<string | null>(null);
 
   const companySuggestions = React.useMemo(() => {
     if (!supplierName) return [];
@@ -39,6 +65,28 @@ export function SupplierFormFields({
     if (!query) return [];
     return existingCompanies.filter((comp) => comp.toLowerCase().includes(query)).slice(0, 5);
   }, [supplierName, existingCompanies]);
+
+  React.useEffect(() => {
+    if (!autoFillLocation) return;
+    const companyKey = supplierName.trim().toLowerCase();
+    if (!companyKey) {
+      autoFilledLocationRef.current = null;
+      return;
+    }
+    const knownLocation = locationByCompany.get(companyKey);
+    if (!knownLocation) return;
+    const currentLocation = (form.getValues('location') || '').trim();
+    // A location typed by the user wins; only a blank field or a value this
+    // effect auto-filled earlier may be replaced.
+    if (currentLocation === knownLocation) return;
+    if (currentLocation && currentLocation !== autoFilledLocationRef.current) return;
+    form.setValue('location', knownLocation, {
+      shouldDirty: true,
+      shouldTouch: true,
+      shouldValidate: true,
+    });
+    autoFilledLocationRef.current = knownLocation;
+  }, [autoFillLocation, supplierName, locationByCompany, form]);
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

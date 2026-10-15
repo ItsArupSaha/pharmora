@@ -6,14 +6,12 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useToast } from '@/hooks/use-toast';
 import { addItem, getItems, updateItem } from '@/lib/actions';
 import type { Category, Item } from '@/lib/types';
-import { z } from 'zod';
 import {
   addItemsFormSchema,
   type AddItemsFormValues,
 } from '@/components/items/schema';
 import {
   emptyItemRow,
-  isAssetOrSurgicalCategory,
   rowFromItem,
   rowToItemData,
 } from '@/components/items/item-row-mapping';
@@ -43,23 +41,8 @@ export function useAddItems({
   const [isPending, startTransition] = React.useTransition();
   const [existingItems, setExistingItems] = React.useState<Item[]>([]);
 
-  const dynamicSchema = React.useMemo(() => {
-    return addItemsFormSchema.superRefine((data, ctx) => {
-      data.items.forEach((row, index) => {
-        const exempt = isAssetOrSurgicalCategory(categories, row.categoryId);
-        if (!exempt && row.sellingPrice < row.cost) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ['items', index, 'sellingPrice'],
-            message: 'Selling price cannot be less than cost.',
-          });
-        }
-      });
-    });
-  }, [categories]);
-
   const form = useForm<AddItemsFormValues>({
-    resolver: zodResolver(dynamicSchema),
+    resolver: zodResolver(addItemsFormSchema),
     defaultValues: { company: '', location: '', items: [emptyItemRow()] },
   });
 
