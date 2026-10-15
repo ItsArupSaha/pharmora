@@ -5,7 +5,6 @@ import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { deleteCategory, deleteItem, getCategories, getItems } from '@/lib/actions';
 import type { Category, Item } from '@/lib/types';
-import { exportInventoryPdf, exportInventoryXlsx } from '@/components/items/items-export-utils';
 import { useClosingStock } from './use-closing-stock';
 import { useItemFilters } from './use-item-filters';
 
@@ -125,40 +124,6 @@ export function useItemManagement(userId: string) {
   const closingStock = useClosingStock({ userId, authUser });
   const itemFilters = useItemFilters({ allItems });
 
-  // Direct inventory exports
-  const handleDownloadInventoryPdf = () => {
-    const itemsToExport =
-      itemFilters.selectedCompanyFilter && itemFilters.selectedCompanyFilter !== 'all'
-        ? allItems.filter(
-            (item) =>
-              (item.company || '').trim().toLowerCase() ===
-              itemFilters.selectedCompanyFilter.toLowerCase()
-          )
-        : allItems;
-
-    exportInventoryPdf(
-      itemsToExport,
-      authUser,
-      itemFilters.selectedCompanyFilter
-    );
-  };
-
-  const handleDownloadInventoryXlsx = () => {
-    const itemsToExport =
-      itemFilters.selectedCompanyFilter && itemFilters.selectedCompanyFilter !== 'all'
-        ? allItems.filter(
-            (item) =>
-              (item.company || '').trim().toLowerCase() ===
-              itemFilters.selectedCompanyFilter.toLowerCase()
-          )
-        : allItems;
-
-    exportInventoryXlsx(
-      itemsToExport,
-      itemFilters.selectedCompanyFilter
-    );
-  };
-
   return {
     allItems,
     categories,
@@ -179,10 +144,6 @@ export function useItemManagement(userId: string) {
     handleDeleteItem,
     handleDeleteCategory,
     expiringAndExpiredMedicines,
-
-    // Direct inventory downloads
-    handleDownloadInventoryPdf,
-    handleDownloadInventoryXlsx,
 
     // Delegate closing stock state/actions
     isStockDialogOpen: closingStock.isStockDialogOpen,

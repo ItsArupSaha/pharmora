@@ -78,6 +78,7 @@ export function AddItemsDialog({
                 existingItems={existingItems}
                 companyFieldName="company"
                 autoFillLocation
+                showLocation={false}
               />
               <Separator />
 

@@ -16,7 +16,6 @@ interface ItemManagementProps {
 
 export default function ItemManagement({ userId }: ItemManagementProps) {
   const {
-    allItems,
     categories,
     companies,
     isInitialLoading,
@@ -49,8 +48,6 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
     handleEditItem,
     handleAddNewItem,
     handleDeleteItem,
-    handleDownloadInventoryPdf,
-    handleDownloadInventoryXlsx,
     handleDownloadClosingStockPdf,
     handleDownloadClosingStockXlsx,
     expiringAndExpiredMedicines,
@@ -63,7 +60,6 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
   return (
     <Card className="animate-in fade-in-50">
       <ItemManagementHeader
-        userId={userId}
         isStockDialogOpen={isStockDialogOpen}
         setIsStockDialogOpen={setIsStockDialogOpen}
         closingStockDate={closingStockDate}
@@ -74,11 +70,7 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
         companies={companies}
         selectedCompany={closingStockCompanyFilter}
         onCompanyChange={setClosingStockCompanyFilter}
-        onDownloadInventoryPdf={handleDownloadInventoryPdf}
-        onDownloadInventoryXlsx={handleDownloadInventoryXlsx}
-        hasItemsToDownload={allItems.length > 0}
         handleAddNewItem={handleAddNewItem}
-        loadData={loadData}
       />
       <CardContent>
         {/* Expiry Warning Banner */}

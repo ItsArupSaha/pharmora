@@ -36,11 +36,21 @@ export function ItemsTable({
 }: ItemsTableProps) {
   const { authUser } = useAuth();
   const { canWrite } = useAccountAccess();
-  // Stock-management mode hides money and generic-group columns; the data
-  // itself is unchanged.
+  // Stock-management mode hides category, generic-group, shelf and money
+  // columns; the data itself is unchanged.
   const isStockMode = authUser?.appMode === 'stock';
   const showGeneric = !isStockMode;
   const showPrices = !isStockMode;
+  const showCategory = !isStockMode;
+  const showLocation = !isStockMode;
+
+  // Always-visible: title, company, expiry, stock, actions.
+  const columnCount =
+    5 +
+    (showCategory ? 1 : 0) +
+    (showGeneric ? 1 : 0) +
+    (showLocation ? 1 : 0) +
+    (showPrices ? 2 : 0);
 
   // Pharmacy column labels
   const titleHeader = 'Medicine Name';
@@ -54,31 +64,26 @@ export function ItemsTable({
         <TableHeader>
           <TableRow>
             <TableHead>{titleHeader}</TableHead>
-            <TableHead className="hidden sm:table-cell">Category</TableHead>
+            {showCategory && <TableHead className="hidden sm:table-cell">Category</TableHead>}
             {showGeneric && <TableHead className="hidden md:table-cell">{detailHeader}</TableHead>}
             <TableHead className="hidden md:table-cell">{companyHeader}</TableHead>
             <TableHead className="hidden sm:table-cell">Expiry Date</TableHead>
-            <TableHead className="hidden lg:table-cell">{locationHeader}</TableHead>
+            {showLocation && <TableHead className="hidden lg:table-cell">{locationHeader}</TableHead>}
             {showPrices && <TableHead className="text-right hidden sm:table-cell">Prod. Cost</TableHead>}
             {showPrices && <TableHead className="text-right">Selling Price</TableHead>}
             <TableHead className="text-right">Stock</TableHead>
-            <TableHead className="text-right w-[120px]">Actions</TableHead>
+            <TableHead className="text-right w-[80px]">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {isInitialLoading ? (
             Array.from({ length: 5 }).map((_, i) => (
               <TableRow key={`skeleton-${i}`}>
-                <TableCell><Skeleton className="h-5 w-3/4" /></TableCell>
-                <TableCell><Skeleton className="h-5 w-2/4" /></TableCell>
-                <TableCell><Skeleton className="h-5 w-2/4" /></TableCell>
-                <TableCell><Skeleton className="h-5 w-2/4" /></TableCell>
-                <TableCell><Skeleton className="h-5 w-2/4" /></TableCell>
-                <TableCell><Skeleton className="h-5 w-2/4" /></TableCell>
-                {showPrices && <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>}
-                {showPrices && <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>}
-                <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
-                <TableCell><Skeleton className="h-5 w-3/4 ml-auto" /></TableCell>
+                {Array.from({ length: columnCount }).map((_, j) => (
+                  <TableCell key={j}>
+                    <Skeleton className={cn('h-5', j === 0 ? 'w-3/4' : 'w-2/4')} />
+                  </TableCell>
+                ))}
               </TableRow>
             ))
           ) : items.length > 0 ? (
@@ -100,7 +105,9 @@ export function ItemsTable({
                       {isExpiringSoon && <span className="text-[10px] text-amber-600 font-bold uppercase tracking-wider mt-0.5">Expiring Soon</span>}
                     </div>
                   </TableCell>
-                  <TableCell className="hidden sm:table-cell">{item.categoryName}</TableCell>
+                  {showCategory && (
+                    <TableCell className="hidden sm:table-cell">{item.categoryName}</TableCell>
+                  )}
                   {showGeneric && (
                     <TableCell className="hidden md:table-cell">
                       {item.medicineGroup || '-'}
@@ -113,24 +120,28 @@ export function ItemsTable({
                   )}>
                     {item.expiryDate ? format(new Date(item.expiryDate), 'yyyy-MM-dd') : '-'}
                   </TableCell>
-                  <TableCell className="hidden lg:table-cell">{item.location || '-'}</TableCell>
+                  {showLocation && (
+                    <TableCell className="hidden lg:table-cell">{item.location || '-'}</TableCell>
+                  )}
                   {showPrices && <TableCell className="text-right hidden sm:table-cell">৳{item.productionPrice.toFixed(2)}</TableCell>}
                   {showPrices && <TableCell className="text-right">৳{item.sellingPrice.toFixed(2)}</TableCell>}
                   <TableCell className="text-right">{item.stock}</TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="icon" onClick={() => onEdit(item)} disabled={!canWrite}>
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => onDelete(item.id)} disabled={!canWrite || isPending}>
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
+                    <div className="flex flex-col items-end gap-1">
+                      <Button variant="ghost" size="icon" onClick={() => onEdit(item)} disabled={!canWrite}>
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => onDelete(item.id)} disabled={!canWrite || isPending}>
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               );
             })
           ) : (
             <TableRow>
-              <TableCell colSpan={10} className="h-24 text-center text-muted-foreground">
+              <TableCell colSpan={columnCount} className="h-24 text-center text-muted-foreground">
                 No items found matching your filters.
               </TableCell>
             </TableRow>

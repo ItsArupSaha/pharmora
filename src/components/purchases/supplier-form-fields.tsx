@@ -15,6 +15,9 @@ interface SupplierFormFieldsProps {
   // When enabled, resolving a company to one already in the inventory
   // auto-fills the shelf/row with that company's recorded location.
   autoFillLocation?: boolean;
+  // Hides the shelf/row input (e.g. stock mode) while keeping the value in
+  // the form state so existing locations round-trip unchanged.
+  showLocation?: boolean;
 }
 
 export function SupplierFormFields({
@@ -22,6 +25,7 @@ export function SupplierFormFields({
   existingItems,
   companyFieldName = 'supplier',
   autoFillLocation = false,
+  showLocation = true,
 }: SupplierFormFieldsProps) {
   const existingCompanies = React.useMemo(() => {
     if (!existingItems) return [];
@@ -134,19 +138,21 @@ export function SupplierFormFields({
           </FormItem>
         )}
       />
-      <FormField
-        control={form.control}
-        name="location"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Shelf / Row</FormLabel>
-            <FormControl>
-              <Input placeholder="e.g., 2, Shelf-A, Row-3" {...field} autoComplete="off" />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
+      {showLocation && (
+        <FormField
+          control={form.control}
+          name="location"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Shelf / Row</FormLabel>
+              <FormControl>
+                <Input placeholder="e.g., 2, Shelf-A, Row-3" {...field} autoComplete="off" />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      )}
     </div>
   );
 }

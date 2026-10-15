@@ -1,12 +1,11 @@
 import * as React from 'react';
-import { FileSpreadsheet, FileText, PlusCircle } from 'lucide-react';
+import { PlusCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useAccountAccess } from '@/hooks/use-account-access';
 import { ClosingStockDialog } from './closing-stock-dialog';
 
 interface ItemManagementHeaderProps {
-  userId: string;
   isStockDialogOpen: boolean;
   setIsStockDialogOpen: (open: boolean) => void;
   closingStockDate: Date | undefined;
@@ -17,15 +16,10 @@ interface ItemManagementHeaderProps {
   companies?: string[];
   selectedCompany?: string;
   onCompanyChange?: (company: string) => void;
-  onDownloadInventoryPdf?: () => void;
-  onDownloadInventoryXlsx?: () => void;
-  hasItemsToDownload?: boolean;
   handleAddNewItem: () => void;
-  loadData: () => void;
 }
 
 export function ItemManagementHeader({
-  userId,
   isStockDialogOpen,
   setIsStockDialogOpen,
   closingStockDate,
@@ -36,11 +30,7 @@ export function ItemManagementHeader({
   companies = [],
   selectedCompany = 'all',
   onCompanyChange,
-  onDownloadInventoryPdf,
-  onDownloadInventoryXlsx,
-  hasItemsToDownload = true,
   handleAddNewItem,
-  loadData,
 }: ItemManagementHeaderProps) {
   const { canWrite } = useAccountAccess();
   return (
@@ -59,26 +49,6 @@ export function ItemManagementHeader({
           >
             <PlusCircle className="mr-2 h-4 w-4" /> Add New Item
           </Button>
-          {onDownloadInventoryPdf && (
-            <Button
-              variant="outline"
-              onClick={onDownloadInventoryPdf}
-              disabled={!hasItemsToDownload}
-              className="w-full sm:w-auto"
-            >
-              <FileText className="mr-2 h-4 w-4" /> Download PDF
-            </Button>
-          )}
-          {onDownloadInventoryXlsx && (
-            <Button
-              variant="outline"
-              onClick={onDownloadInventoryXlsx}
-              disabled={!hasItemsToDownload}
-              className="w-full sm:w-auto"
-            >
-              <FileSpreadsheet className="mr-2 h-4 w-4" /> Download Excel
-            </Button>
-          )}
           <ClosingStockDialog
             isOpen={isStockDialogOpen}
             onOpenChange={setIsStockDialogOpen}
