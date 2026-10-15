@@ -136,6 +136,28 @@ export async function addItem(userId: string, data: Omit<Item, 'id'>) {
   return { id: newDocRef.id, ...data, isSalable: salable };
 }
 
+/**
+ * Multi-row stock entry: one write per item but a single cache invalidation
+ * at the end, so a 15-row save costs 16 writes instead of 30.
+ */
+export async function addItems(userId: string, rows: Omit<Item, 'id'>[]) {
+  const results = await Promise.allSettled(
+    rows.map(async (row) => {
+      if (!db || !userId) throw new Error('Database not configured.');
+      const salable = resolveIsSalable(row);
+      const itemsCollection = collection(db, 'users', userId, 'items');
+      const newDocRef = await addDoc(itemsCollection, stripUndefinedFields({
+        ...row,
+        isSalable: salable,
+        sellingPrice: salable ? row.sellingPrice : 0,
+      }));
+      return { id: newDocRef.id, ...row, isSalable: salable };
+    })
+  );
+  await invalidateAppData(userId);
+  return results;
+}
+
 export async function updateItem(userId: string, id: string, data: Omit<Item, 'id'>) {
   if (!db || !userId) return;
   const salable = resolveIsSalable(data);

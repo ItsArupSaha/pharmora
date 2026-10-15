@@ -70,15 +70,17 @@ function evictLedgerCaches(userId: string): void {
   invalidateCollectionCacheFamily('ledger-master', userId);
 }
 
-export type InvalidateScope = 'all' | 'ledger';
+export type InvalidateScope = 'all' | 'ledger' | 'catalog';
 
 export interface InvalidateOptions {
   /**
    * 'all' (default): bump both counters — for mutations that touch stock or
-   * the catalog (sales, purchases, returns, item/category edits), since every
-   * ledger view also derives from items. 'ledger': bump only ledgerVersion —
-   * for pure money movements (payments, payables, expenses, capital) that
-   * never change the catalog, so the items cache stays warm.
+   * the catalog (sales, purchases, returns, item edits), since every ledger
+   * view also derives from items. 'ledger': bump only ledgerVersion — for
+   * pure money movements (payments, payables, expenses, capital) that never
+   * change the catalog, so the items cache stays warm. 'catalog': bump only
+   * catalogVersion — for category add/rename/delete, which nothing in the
+   * ledger derives from.
    */
   scope?: InvalidateScope;
   /**
@@ -102,19 +104,19 @@ export async function invalidateAppData(
   options: InvalidateOptions = {}
 ): Promise<void> {
   const ledgerOnly = options.scope === 'ledger';
+  const catalogOnly = options.scope === 'catalog';
 
   if (!db) {
     // Evict locally even without a database handle so this instance never
     // serves data it knows is stale.
     invalidateCollectionCache('data-versions', userId);
     if (!ledgerOnly) evictCatalogCaches(userId);
-    evictLedgerCaches(userId);
+    if (!catalogOnly) evictLedgerCaches(userId);
     return;
   }
 
-  const updates: Record<string, ReturnType<typeof increment>> = {
-    ledgerVersion: increment(1),
-  };
+  const updates: Record<string, ReturnType<typeof increment>> = {};
+  if (!catalogOnly) updates.ledgerVersion = increment(1);
   if (!ledgerOnly) updates.catalogVersion = increment(1);
   try {
     await updateDoc(doc(db, 'users', userId), updates);
@@ -140,6 +142,8 @@ export async function invalidateAppData(
 
   invalidateCollectionCache('data-versions', userId);
   if (!ledgerOnly) evictCatalogCaches(userId);
+  if (catalogOnly) return;
+
   if (salesMasterRetained) {
     // Evict every ledger-derived cache except the patched sales master.
     invalidateCollectionCacheFamily('expenses-master', userId);

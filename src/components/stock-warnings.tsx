@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { getItems, getCategories, resetAllIgnoredWarnings } from '@/lib/actions';
+import { getItems, getCategories } from '@/lib/actions';
 import type { Item, Category } from '@/lib/types';
 import { isFuzzyMatch, getFormFactorRank } from '@/lib/search-utils';
 import { StockWarningsKpis } from './stock-warnings/stock-warnings-kpis';
@@ -25,11 +25,6 @@ export default function StockWarnings({ userId }: StockWarningsProps) {
   const loadData = React.useCallback(async () => {
     setIsLoading(true);
     try {
-      // Migrate any ignored warnings back to active warnings in DB
-      await resetAllIgnoredWarnings(userId).catch((err) =>
-        console.error('Migration error resetting ignored warnings:', err)
-      );
-
       const [allItems, allCategories] = await Promise.all([
         getItems(userId),
         getCategories(userId),

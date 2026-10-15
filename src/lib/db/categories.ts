@@ -41,7 +41,7 @@ export async function addCategory(userId: string, data: Omit<Category, 'id' | 'c
     ...data,
     createdAt: new Date()
   });
-  await invalidateAppData(userId, );
+  await invalidateAppData(userId, { scope: 'catalog' });
   return { id: newDocRef.id, ...data, createdAt: new Date() };
 }
 
@@ -49,14 +49,14 @@ export async function updateCategory(userId: string, id: string, data: Partial<O
   if (!db || !userId) return;
   const categoryRef = doc(db, 'users', userId, 'categories', id);
   await updateDoc(categoryRef, data);
-  await invalidateAppData(userId, );
+  await invalidateAppData(userId, { scope: 'catalog' });
 }
 
 export async function deleteCategory(userId: string, id: string) {
   if (!db || !userId) return;
   const categoryRef = doc(db, 'users', userId, 'categories', id);
   await deleteDoc(categoryRef);
-  await invalidateAppData(userId, );
+  await invalidateAppData(userId, { scope: 'catalog' });
 }
 
 // Initialize default pharmacy categories for new users

@@ -1,43 +1,49 @@
 import { addDoc, collection, deleteDoc, doc, getDocs, orderBy, query, Timestamp, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { invalidateAppData } from './data-version';
+import { invalidateAppData, readLedgerVersion } from './data-version';
+import { cachedCollection } from './collection-cache';
 import type { Capital } from '../types';
 
 /**
- * Get all capital transactions history for a specific user
+ * Get all capital transactions history for a specific user.
+ * Ledger-version guarded: one scan per data change, then served from memory —
+ * the balance-sheet page re-requests this on every date change.
  */
 export async function getCapitalHistory(userId: string): Promise<Capital[]> {
   if (!db || !userId) return [];
-  try {
-    const capitalCollection = collection(db, 'users', userId, 'capital');
-    const snapshot = await getDocs(query(capitalCollection, orderBy('date', 'desc')));
-    return snapshot.docs.map(doc => {
-      const data = doc.data();
-      let serializedDate = new Date().toISOString();
-      if (data.date) {
-        if (data.date instanceof Timestamp) {
-          serializedDate = data.date.toDate().toISOString();
-        } else if (data.date.seconds) {
-          // If it's a plain object representation of a Timestamp (can happen in Next.js serialization boundaries)
-          serializedDate = new Timestamp(data.date.seconds, data.date.nanoseconds).toDate().toISOString();
-        } else {
-          serializedDate = new Date(data.date).toISOString();
+  const version = await readLedgerVersion(userId);
+  return cachedCollection('ledger-master:capital-history', userId, async () => {
+    try {
+      const capitalCollection = collection(db!, 'users', userId, 'capital');
+      const snapshot = await getDocs(query(capitalCollection, orderBy('date', 'desc')));
+      return snapshot.docs.map(doc => {
+        const data = doc.data();
+        let serializedDate = new Date().toISOString();
+        if (data.date) {
+          if (data.date instanceof Timestamp) {
+            serializedDate = data.date.toDate().toISOString();
+          } else if (data.date.seconds) {
+            // If it's a plain object representation of a Timestamp (can happen in Next.js serialization boundaries)
+            serializedDate = new Timestamp(data.date.seconds, data.date.nanoseconds).toDate().toISOString();
+          } else {
+            serializedDate = new Date(data.date).toISOString();
+          }
         }
-      }
-      
-      return {
-        id: doc.id,
-        source: data.source || 'Capital Adjustment',
-        amount: data.amount || 0,
-        paymentMethod: data.paymentMethod || 'Cash',
-        notes: data.notes || '',
-        date: serializedDate,
-      } as Capital;
-    });
-  } catch (error) {
-    console.error('Error fetching capital history:', error);
-    return [];
-  }
+
+        return {
+          id: doc.id,
+          source: data.source || 'Capital Adjustment',
+          amount: data.amount || 0,
+          paymentMethod: data.paymentMethod || 'Cash',
+          notes: data.notes || '',
+          date: serializedDate,
+        } as Capital;
+      });
+    } catch (error) {
+      console.error('Error fetching capital history:', error);
+      return [];
+    }
+  }, { version });
 }
 
 /**

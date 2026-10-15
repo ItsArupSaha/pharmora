@@ -4,7 +4,7 @@ import * as React from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useToast } from '@/hooks/use-toast';
-import { addItem, getItems, updateItem } from '@/lib/actions';
+import { addItems, getItems, updateItem } from '@/lib/actions';
 import type { Category, Item } from '@/lib/types';
 import {
   addItemsFormSchema,
@@ -113,9 +113,7 @@ export function useAddItems({
         return;
       }
 
-      const results = await Promise.allSettled(
-        mappedRows.map((row) => addItem(userId, rowToItemData(row, categories)))
-      );
+      const results = await addItems(userId, mappedRows.map((row) => rowToItemData(row, categories)));
       const failedCount = results.filter((r) => r.status === 'rejected').length;
 
       if (failedCount === data.items.length) {

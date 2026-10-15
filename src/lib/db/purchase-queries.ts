@@ -56,15 +56,23 @@ export async function searchPurchases(userId: string, searchTerm: string): Promi
 
 export async function getPurchasesForDateRange(userId: string, startDate: Date, endDate: Date): Promise<Purchase[]> {
     if (!db || !userId) return [];
-    const purchasesCollection = collection(db, 'users', userId, 'purchases');
-    const q = query(
-        purchasesCollection,
-        where('date', '>=', Timestamp.fromDate(startDate)),
-        where('date', '<=', Timestamp.fromDate(endDate)),
-        orderBy('date', 'desc')
+    const version = await readLedgerVersion(userId);
+    return cachedCollection(
+        `ledger-master:report:purchases:${startDate.toISOString()}:${endDate.toISOString()}`,
+        userId,
+        async () => {
+            const purchasesCollection = collection(db!, 'users', userId, 'purchases');
+            const q = query(
+                purchasesCollection,
+                where('date', '>=', Timestamp.fromDate(startDate)),
+                where('date', '<=', Timestamp.fromDate(endDate)),
+                orderBy('date', 'desc')
+            );
+            const snapshot = await getDocs(q);
+            return snapshot.docs.map(docToPurchase);
+        },
+        { version }
     );
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(docToPurchase);
 }
 
 export async function getPurchasesForMonth(userId: string, year: number, month: number, offsetMinutes?: number): Promise<Purchase[]> {

@@ -80,15 +80,23 @@ export async function getSalesForCustomer(userId: string, customerId: string): P
 
 export async function getSalesForDateRange(userId: string, startDate: Date, endDate: Date): Promise<Sale[]> {
   if (!db || !userId) return [];
-  const salesCollection = collection(db, 'users', userId, 'sales');
-  const q = query(
-    salesCollection,
-    where('date', '>=', Timestamp.fromDate(startDate)),
-    where('date', '<=', Timestamp.fromDate(endDate)),
-    orderBy('date', 'desc')
+  const version = await readLedgerVersion(userId);
+  return cachedCollection(
+    `ledger-master:report:sales:${startDate.toISOString()}:${endDate.toISOString()}`,
+    userId,
+    async () => {
+      const salesCollection = collection(db!, 'users', userId, 'sales');
+      const q = query(
+        salesCollection,
+        where('date', '>=', Timestamp.fromDate(startDate)),
+        where('date', '<=', Timestamp.fromDate(endDate)),
+        orderBy('date', 'desc')
+      );
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(docToSale);
+    },
+    { version }
   );
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map(docToSale);
 }
 
 export async function getSalesForMonth(userId: string, year: number, month: number, offsetMinutes?: number): Promise<Sale[]> {

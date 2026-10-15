@@ -67,18 +67,26 @@ export async function getExpensesPaginated({ userId, pageLimit = 5, lastVisibleI
 
 export async function getExpensesForDateRange(userId: string, startDate: Date, endDate: Date): Promise<Expense[]> {
     if (!db || !userId) return [];
-    const expensesCollection = collection(db, 'users', userId, 'expenses');
-    const q = query(
-        expensesCollection,
-        where('date', '>=', Timestamp.fromDate(startDate)),
-        where('date', '<=', Timestamp.fromDate(endDate)),
-        orderBy('date', 'desc')
-    );
-    const snapshot = await getDocs(q);
-    const expenses = snapshot.docs.map(docToExpense);
+    const version = await readLedgerVersion(userId);
+    return cachedCollection(
+        `ledger-master:report:expenses:${startDate.toISOString()}:${endDate.toISOString()}`,
+        userId,
+        async () => {
+            const expensesCollection = collection(db!, 'users', userId, 'expenses');
+            const q = query(
+                expensesCollection,
+                where('date', '>=', Timestamp.fromDate(startDate)),
+                where('date', '<=', Timestamp.fromDate(endDate)),
+                orderBy('date', 'desc')
+            );
+            const snapshot = await getDocs(q);
+            const expenses = snapshot.docs.map(docToExpense);
 
-    // Filter out transfer-related expenses (they shouldn't affect profit calculation)
-    return expenses.filter(expense => !expense.description.startsWith('Transfer to'));
+            // Filter out transfer-related expenses (they shouldn't affect profit calculation)
+            return expenses.filter(expense => !expense.description.startsWith('Transfer to'));
+        },
+        { version }
+    );
 }
 
 export async function getExpensesForMonth(userId: string, year: number, month: number, offsetMinutes?: number): Promise<Expense[]> {
