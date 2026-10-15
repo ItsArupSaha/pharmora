@@ -25,7 +25,7 @@ export function useSetAppMode(onDone?: (mode: AppMode) => void): UseSetAppModeRe
         title: mode === 'stock' ? 'Stock Management Mode' : 'Normal Mode',
         description:
           mode === 'stock'
-            ? 'Sales, expenses and money reports are hidden. You can switch anytime.'
+            ? 'Purchases, expenses and money reports are hidden. You can switch anytime.'
             : 'All features are enabled. You can switch anytime.',
       });
       onDone?.(mode);

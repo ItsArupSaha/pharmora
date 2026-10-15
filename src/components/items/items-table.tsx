@@ -36,21 +36,21 @@ export function ItemsTable({
 }: ItemsTableProps) {
   const { authUser } = useAuth();
   const { canWrite } = useAccountAccess();
-  // Stock-management mode hides category, generic-group, shelf and money
-  // columns; the data itself is unchanged.
+  // Stock-management mode hides category, generic-group, shelf and production
+  // cost columns; the data itself is unchanged.
   const isStockMode = authUser?.appMode === 'stock';
   const showGeneric = !isStockMode;
-  const showPrices = !isStockMode;
+  const showProdCost = !isStockMode;
   const showCategory = !isStockMode;
   const showLocation = !isStockMode;
 
-  // Always-visible: title, company, expiry, stock, actions.
+  // Always-visible: title, company, expiry, selling price, stock, actions.
   const columnCount =
-    5 +
+    6 +
     (showCategory ? 1 : 0) +
     (showGeneric ? 1 : 0) +
     (showLocation ? 1 : 0) +
-    (showPrices ? 2 : 0);
+    (showProdCost ? 1 : 0);
 
   // Pharmacy column labels
   const titleHeader = 'Medicine Name';
@@ -66,12 +66,12 @@ export function ItemsTable({
             <TableHead>{titleHeader}</TableHead>
             {showCategory && <TableHead className="hidden sm:table-cell">Category</TableHead>}
             {showGeneric && <TableHead className="hidden md:table-cell">{detailHeader}</TableHead>}
+            {showProdCost && <TableHead className="text-right hidden sm:table-cell">Prod. Cost</TableHead>}
+            <TableHead className="text-right">Selling Price</TableHead>
+            <TableHead className="text-right">Stock</TableHead>
             <TableHead className="hidden md:table-cell">{companyHeader}</TableHead>
             <TableHead className="hidden sm:table-cell">Expiry Date</TableHead>
             {showLocation && <TableHead className="hidden lg:table-cell">{locationHeader}</TableHead>}
-            {showPrices && <TableHead className="text-right hidden sm:table-cell">Prod. Cost</TableHead>}
-            {showPrices && <TableHead className="text-right">Selling Price</TableHead>}
-            <TableHead className="text-right">Stock</TableHead>
             <TableHead className="text-right w-[80px]">Actions</TableHead>
           </TableRow>
         </TableHeader>
@@ -113,6 +113,9 @@ export function ItemsTable({
                       {item.medicineGroup || '-'}
                     </TableCell>
                   )}
+                  {showProdCost && <TableCell className="text-right hidden sm:table-cell">৳{item.productionPrice.toFixed(2)}</TableCell>}
+                  <TableCell className="text-right">৳{item.sellingPrice.toFixed(2)}</TableCell>
+                  <TableCell className="text-right">{item.stock}</TableCell>
                   <TableCell className="hidden md:table-cell">{item.company || '-'}</TableCell>
                   <TableCell className={cn(
                     "hidden sm:table-cell",
@@ -123,9 +126,6 @@ export function ItemsTable({
                   {showLocation && (
                     <TableCell className="hidden lg:table-cell">{item.location || '-'}</TableCell>
                   )}
-                  {showPrices && <TableCell className="text-right hidden sm:table-cell">৳{item.productionPrice.toFixed(2)}</TableCell>}
-                  {showPrices && <TableCell className="text-right">৳{item.sellingPrice.toFixed(2)}</TableCell>}
-                  <TableCell className="text-right">{item.stock}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex flex-col items-end gap-1">
                       <Button variant="ghost" size="icon" onClick={() => onEdit(item)} disabled={!canWrite}>

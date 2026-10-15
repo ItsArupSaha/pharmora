@@ -45,8 +45,8 @@ export function SaleItemsTableRow({
         {index + 1}
       </td>
 
-      {/* Medicine Selector Cell */}
-      <td className="border border-slate-200 dark:border-slate-800 p-0 bg-transparent min-w-[160px] align-top">
+      {/* Medicine Selector Cell — name with stock beside it, price/company/shelf underneath */}
+      <td className="border border-slate-200 dark:border-slate-800 p-0 bg-transparent min-w-[120px] align-top">
         <FormField
           control={control}
           name={`items.${index}.itemId`}
@@ -58,7 +58,7 @@ export function SaleItemsTableRow({
                     <SearchableItemSelect
                       items={items}
                       value={selectField.value || ''}
-                      className="w-full h-8 rounded-none border-0 shadow-none bg-transparent hover:bg-slate-50/50 dark:hover:bg-slate-900/20 focus:bg-background focus:ring-0 focus-visible:ring-0 px-3 py-0.5 font-medium text-xs"
+                      className="w-full min-h-8 h-auto rounded-none border-0 shadow-none bg-transparent hover:bg-slate-50/50 dark:hover:bg-slate-900/20 focus:bg-background focus:ring-0 focus-visible:ring-0 px-3 py-0.5 font-medium text-xs"
                       data-row={index}
                       data-col={0}
                       onChange={(value) => {
@@ -87,19 +87,16 @@ export function SaleItemsTableRow({
                     />
                   </div>
                   {selectedItem && (
-                    <div className="flex items-center gap-2 text-[10px] px-3 py-1.5 bg-slate-50 dark:bg-slate-900/40 border-t border-slate-200 dark:border-slate-800 select-none">
+                    <div className="flex items-center gap-1.5 text-[9px] px-2 py-1 bg-slate-50 dark:bg-slate-900/40 border-t border-slate-200 dark:border-slate-800 select-none whitespace-nowrap overflow-hidden">
+                      <span className="shrink-0 font-semibold font-mono text-slate-700 dark:text-slate-300">
+                        ৳{price.toFixed(2)}
+                      </span>
+                      <span className="shrink-0 text-slate-300 dark:text-slate-700 select-none">|</span>
                       <span
-                        className="font-semibold text-slate-700 dark:text-slate-300 truncate max-w-[130px]"
+                        className="min-w-0 truncate font-semibold text-slate-700 dark:text-slate-300"
                         title={selectedItem.company || '—'}
                       >
                         {selectedItem.company || '—'}
-                      </span>
-                      <span className="text-slate-300 dark:text-slate-700 select-none">|</span>
-                      <span
-                        className="text-slate-500 dark:text-slate-400 truncate max-w-[130px]"
-                        title={selectedItem.location ? `Shelf: ${selectedItem.location}` : 'No Shelf'}
-                      >
-                        {selectedItem.location ? `Shelf: ${selectedItem.location}` : 'No Shelf'}
                       </span>
                     </div>
                   )}
@@ -108,11 +105,6 @@ export function SaleItemsTableRow({
             </FormItem>
           )}
         />
-      </td>
-
-      {/* In Stock Count */}
-      <td className="border border-slate-200 dark:border-slate-800 p-2 text-center font-semibold font-mono bg-slate-50/30 dark:bg-slate-900/5 text-slate-500 select-none">
-        {selectedItem ? selectedItem.stock : '—'}
       </td>
 
       {/* Quantity input */}
@@ -139,41 +131,6 @@ export function SaleItemsTableRow({
               </FormControl>
             </FormItem>
           )}
-        />
-      </td>
-
-      {/* Price input */}
-      <td className="border border-slate-200 dark:border-slate-800 p-0">
-        <FormField
-          control={control}
-          name={`items.${index}.price`}
-          render={({ field: priceField }) => {
-            const raw = priceField.value;
-            const displayPrice =
-              raw !== undefined && raw !== '' && raw !== null
-                ? raw
-                : (selectedItem ? selectedItem.sellingPrice : '');
-
-            return (
-              <FormItem className="space-y-0">
-                <FormControl>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder={selectedItem ? String(selectedItem.sellingPrice) : "0.00"}
-                    className="w-full h-8 rounded-none border-0 shadow-none bg-transparent hover:bg-slate-50/50 dark:hover:bg-slate-900/20 focus:bg-background focus:ring-0 focus-visible:ring-0 text-right font-mono pr-3 py-0.5"
-                    data-row={index}
-                    data-col={2}
-                    {...priceField}
-                    value={displayPrice}
-                    disabled={!watchItemId}
-                    onChange={(e) => priceField.onChange(e.target.value === '' ? '' : Number(e.target.value))}
-                  />
-                </FormControl>
-              </FormItem>
-            );
-          }}
         />
       </td>
 

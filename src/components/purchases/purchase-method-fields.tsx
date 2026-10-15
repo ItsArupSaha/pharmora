@@ -33,36 +33,13 @@ export function PurchaseMethodFields({ form }: PurchaseMethodFieldsProps) {
                 value={field.value}
                 className="flex flex-wrap gap-4 pt-2"
               >
+                {/* Bank/Due/Split hidden for now — Cash is the only active method. */}
                 <FormItem className="flex items-center space-x-2">
                   <FormControl>
                     <RadioGroupItem value="Cash" id="cash-pur" />
                   </FormControl>
                   <FormLabel htmlFor="cash-pur" className="font-normal">
                     Cash
-                  </FormLabel>
-                </FormItem>
-                <FormItem className="flex items-center space-x-2">
-                  <FormControl>
-                    <RadioGroupItem value="Bank" id="bank-pur" />
-                  </FormControl>
-                  <FormLabel htmlFor="bank-pur" className="font-normal">
-                    Bank
-                  </FormLabel>
-                </FormItem>
-                <FormItem className="flex items-center space-x-2">
-                  <FormControl>
-                    <RadioGroupItem value="Due" id="due-pur" />
-                  </FormControl>
-                  <FormLabel htmlFor="due-pur" className="font-normal">
-                    Due
-                  </FormLabel>
-                </FormItem>
-                <FormItem className="flex items-center space-x-2">
-                  <FormControl>
-                    <RadioGroupItem value="Split" id="split-pur" />
-                  </FormControl>
-                  <FormLabel htmlFor="split-pur" className="font-normal">
-                    Split
                   </FormLabel>
                 </FormItem>
               </RadioGroup>

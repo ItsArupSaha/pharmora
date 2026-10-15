@@ -43,14 +43,15 @@ export function PurchaseItemRow({
   const isAssetOrSurgical = categoryName === 'assets' || categoryName === 'surgicals';
 
   const showCategory = variant === 'purchase';
-  const showPricing = variant === 'purchase';
   const showMedicineFields = variant === 'stock' || !!isMedicine;
+  // Stock mode lays every box out in a uniform two-per-row grid.
+  const wideSpan = variant === 'stock' ? 'md:col-span-3' : 'md:col-span-2';
 
   React.useEffect(() => {
-    if (showPricing && isAssetOrSurgical) {
+    if (isAssetOrSurgical) {
       setValue(`items.${index}.sellingPrice`, 0);
     }
-  }, [showPricing, isAssetOrSurgical, index, setValue]);
+  }, [isAssetOrSurgical, index, setValue]);
 
   return (
     <div className="flex gap-2 items-start p-3 border rounded-md relative">
@@ -106,7 +107,7 @@ export function PurchaseItemRow({
           control={control}
           name={`items.${index}.quantity`}
           render={({ field }) => (
-            <FormItem className={variant === 'stock' ? 'md:col-span-3' : 'md:col-span-2'}>
+            <FormItem className={wideSpan}>
               <FormLabel className="text-xs">Qty</FormLabel>
               <FormControl>
                 <Input type="number" min="1" placeholder="1" {...field} />
@@ -116,37 +117,33 @@ export function PurchaseItemRow({
           )}
         />
 
-        {showPricing && (
-          <FormField
-            control={control}
-            name={`items.${index}.cost`}
-            render={({ field }) => (
-              <FormItem className="md:col-span-2">
-                <FormLabel className="text-xs">Unit Cost</FormLabel>
-                <FormControl>
-                  <Input type="number" step="0.01" placeholder="0.00" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        )}
+        <FormField
+          control={control}
+          name={`items.${index}.cost`}
+          render={({ field }) => (
+            <FormItem className={wideSpan}>
+              <FormLabel className="text-xs">Unit Cost</FormLabel>
+              <FormControl>
+                <Input type="number" step="0.01" placeholder="0.00" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
-        {showPricing && (
-          <FormField
-            control={control}
-            name={`items.${index}.sellingPrice`}
-            render={({ field }) => (
-              <FormItem className="md:col-span-2">
-                <FormLabel className="text-xs">Selling Price</FormLabel>
-                <FormControl>
-                  <Input type="number" step="0.01" placeholder="0.00" disabled={isAssetOrSurgical} {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        )}
+        <FormField
+          control={control}
+          name={`items.${index}.sellingPrice`}
+          render={({ field }) => (
+            <FormItem className={wideSpan}>
+              <FormLabel className="text-xs">Selling Price</FormLabel>
+              <FormControl>
+                <Input type="number" step="0.01" placeholder="0.00" disabled={isAssetOrSurgical} {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
       </div>
       <Button
         type="button"

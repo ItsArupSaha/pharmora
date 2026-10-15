@@ -4,8 +4,8 @@ import { FEATURE_KEYS } from './types';
 // Features available in "stock management only" mode. Everything else in
 // FEATURE_KEYS is considered a normal-mode feature and hidden for stock users.
 export const STOCK_MODE_FEATURES: FeatureKey[] = [
+  'sell',
   'items',
-  'purchases',
   'expiry-alerts',
   'stock-warnings',
   'shelf-update',
@@ -66,5 +66,6 @@ export function isRouteAllowed(
 }
 
 export function getLandingPath(appMode: AppMode | undefined): string {
-  return appMode === 'stock' ? '/items' : '/sales';
+  // Every mode opens on the sale page.
+  return '/sales';
 }

@@ -23,6 +23,7 @@ export function SearchableItemSelect({
   ...props
 }: SearchableItemSelectProps) {
   const [isOpen, setIsOpen] = React.useState(false);
+  const [isEditing, setIsEditing] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState('');
   const [highlightedIndex, setHighlightedIndex] = React.useState(0);
 
@@ -89,6 +90,10 @@ export function SearchableItemSelect({
     }, 50);
   };
 
+  // With a selection made, the row shows the full (wrapping) medicine name
+  // with its stock beside it; clicking it reopens the search input.
+  const showSelectedName = !!selectedItem && !isEditing;
+
   // Key navigation handler
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (!isOpen) {
@@ -122,27 +127,48 @@ export function SearchableItemSelect({
 
   return (
     <div ref={containerRef} className="relative w-full">
-      <Input
-        type="text"
-        placeholder={placeholder}
-        value={searchQuery}
-        onChange={(e) => {
-          const val = e.target.value;
-          setSearchQuery(val);
-          setIsOpen(!!val.trim());
-        }}
-        onBlur={() => {
-          setTimeout(() => {
-            setIsOpen(false);
-            const currentItem = selectedItemRef.current;
-            setSearchQuery(currentItem ? currentItem.title : '');
-          }, 200);
-        }}
-        onKeyDown={handleKeyDown}
-        className={cn('w-full h-8 px-3 text-sm font-medium', className)}
-        {...props}
-        ref={inputRef}
-      />
+      {showSelectedName ? (
+        <button
+          type="button"
+          title="Click to change"
+          className={cn(
+            'flex w-full min-h-8 items-start justify-between gap-2 px-3 py-1 text-left text-xs font-medium hover:bg-slate-50/50 dark:hover:bg-slate-900/20',
+            className
+          )}
+          onClick={() => {
+            setIsEditing(true);
+            requestAnimationFrame(() => inputRef.current?.focus());
+          }}
+        >
+          <span className="min-w-0 break-words leading-snug">{selectedItem.title}</span>
+          <span className="shrink-0 font-mono text-[10px] text-muted-foreground pt-0.5">
+            ({selectedItem.stock})
+          </span>
+        </button>
+      ) : (
+        <Input
+          type="text"
+          placeholder={placeholder}
+          value={searchQuery}
+          onChange={(e) => {
+            const val = e.target.value;
+            setSearchQuery(val);
+            setIsOpen(!!val.trim());
+          }}
+          onBlur={() => {
+            setTimeout(() => {
+              setIsOpen(false);
+              const currentItem = selectedItemRef.current;
+              setSearchQuery(currentItem ? currentItem.title : '');
+              if (currentItem) setIsEditing(false);
+            }, 200);
+          }}
+          onKeyDown={handleKeyDown}
+          className={cn('w-full h-8 px-3 text-sm font-medium', className)}
+          {...props}
+          ref={inputRef}
+        />
+      )}
       {isOpen && filteredItems.length > 0 && (
         <div ref={listRef} className="absolute left-0 right-0 z-50 mt-1 max-h-60 overflow-y-auto bg-popover text-popover-foreground border rounded-md shadow-lg p-1">
           {filteredItems.map((item, idx) => (

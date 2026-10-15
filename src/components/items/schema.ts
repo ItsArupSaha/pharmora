@@ -1,9 +1,9 @@
 import * as z from 'zod';
 
 // One row of the "Add New Items" dialog. Mirrors the purchase item row so the
-// same row component can be reused. Stock mode only surfaces name, group,
-// expiry and quantity in the UI — category and prices stay in the form state
-// (hidden) so editing an existing item round-trips its stored values untouched.
+// same row component can be reused. Stock mode hides only the category field —
+// it stays in the form state so editing an existing item round-trips its
+// stored values untouched.
 export const itemRowSchema = z.object({
   itemName: z.string().min(1, 'Item name is required'),
   categoryId: z.string().default(''),

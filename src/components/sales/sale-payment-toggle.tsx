@@ -66,17 +66,10 @@ export function SalePaymentToggle() {
                 value={field.value || 'Cash'}
                 className="flex gap-4 pt-2"
               >
+                {/* Bank/Due hidden for now — Cash is the only active method. */}
                 <FormItem className="flex items-center space-x-2">
                   <FormControl><RadioGroupItem value="Cash" id="form-cash" /></FormControl>
                   <FormLabel htmlFor="form-cash" className="font-normal cursor-pointer">Cash</FormLabel>
-                </FormItem>
-                <FormItem className="flex items-center space-x-2">
-                  <FormControl><RadioGroupItem value="Bank" id="form-bank" /></FormControl>
-                  <FormLabel htmlFor="form-bank" className="font-normal cursor-pointer">Bank</FormLabel>
-                </FormItem>
-                <FormItem className="flex items-center space-x-2">
-                  <FormControl><RadioGroupItem value="Due" id="form-due" /></FormControl>
-                  <FormLabel htmlFor="form-due" className="font-normal cursor-pointer">Due</FormLabel>
                 </FormItem>
               </RadioGroup>
             </FormControl>

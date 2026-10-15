@@ -67,7 +67,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
           title={canWrite ? undefined : 'Recording sales is disabled while the service is paused.'}
           className="flex-1 sm:flex-initial"
         >
-          Record Sale (POS)
+          Record Sale
         </Button>
         <Button
           variant={activeTab === 'history' ? 'default' : 'outline'}
