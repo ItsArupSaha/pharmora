@@ -90,14 +90,16 @@ describe('calculateCashAndBank', () => {
   });
 });
 
-describe('calculateStockAndAssets (all-time view)', () => {
-  it('values current stock at cost with no cutoff adjustments', () => {
+describe('calculateStockAndAssets', () => {
+  it('live snapshot values current stock directly, ignoring passed transactions', () => {
     const items = [
       { id: 'a', categoryId: 'c1', categoryName: 'Tablet', title: 'Napa', stock: 10, productionPrice: 2 },
       { id: 'b', categoryId: 'c2', categoryName: 'Surgicals', title: 'Forceps', stock: 1, productionPrice: 500 },
     ] as any;
-    const { stockValue, officeAssetsValue } = calculateStockAndAssets(items, [], [], [], always);
-    expect(stockValue).toBe(20); // 10 × 2
+    const sales = [{ date: '2099-01-01', items: [{ itemId: 'a', quantity: 3 }] }] as any;
+    const purchases = [{ date: '2099-01-01', items: [{ categoryId: 'c1', itemName: 'Napa', quantity: 5 }] }] as any;
+    const { stockValue, officeAssetsValue } = calculateStockAndAssets(items, sales, purchases, purchases, always, true);
+    expect(stockValue).toBe(20); // 10 × 2 — no after-cutoff adjustments on the live view
     expect(officeAssetsValue).toBe(500); // surgicals counted as assets
   });
 
@@ -114,8 +116,22 @@ describe('calculateStockAndAssets (all-time view)', () => {
     const purchases = [
       { date: '2026-08-10', items: [{ categoryId: 'c1', itemName: 'Napa', quantity: 5 }] }, // after — subtract
     ] as any;
-    const { stockValue } = calculateStockAndAssets(items, sales, purchases, purchases, isBefore);
+    const { stockValue } = calculateStockAndAssets(items, sales, purchases, purchases, isBefore, false);
     // 10 + 3 sold later − 5 purchased later = 8 units × 2 = 16
     expect(stockValue).toBe(16);
+  });
+
+  it('counts every duplicate line of the same item, not just the first match', () => {
+    const items = [
+      { id: 'a', categoryId: 'c1', categoryName: 'Tablet', title: 'Napa', stock: 10, productionPrice: 2 },
+    ] as any;
+    const cutoff = new Date('2026-08-01');
+    const isBefore = (d: any) => new Date(d) <= cutoff;
+    const sales = [
+      { date: '2026-08-15', items: [{ itemId: 'a', quantity: 2 }, { itemId: 'a', quantity: 3 }] },
+    ] as any;
+    const { stockValue } = calculateStockAndAssets(items, sales, [], [], isBefore, false);
+    // 10 + (2 + 3) sold later = 15 units × 2 = 30
+    expect(stockValue).toBe(30);
   });
 });

@@ -12,6 +12,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableFooter,
   TableHead,
   TableHeader,
   TableRow,
@@ -19,12 +20,18 @@ import {
 import type { Item } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
+export interface StockSummary {
+  itemCount: number;
+  totalValue: number;
+}
+
 interface ItemsTableProps {
   items: Item[];
   isInitialLoading: boolean;
   onEdit: (item: Item) => void;
   onDelete: (id: string) => void;
   isPending: boolean;
+  stockSummary?: StockSummary;
 }
 
 export function ItemsTable({
@@ -33,6 +40,7 @@ export function ItemsTable({
   onEdit,
   onDelete,
   isPending,
+  stockSummary,
 }: ItemsTableProps) {
   const { authUser } = useAuth();
   const { canWrite } = useAccountAccess();
@@ -147,6 +155,24 @@ export function ItemsTable({
             </TableRow>
           )}
         </TableBody>
+        {!isInitialLoading && items.length > 0 && stockSummary && (
+          <TableFooter>
+            <TableRow>
+              <TableCell colSpan={columnCount} className="text-right">
+                <span className="text-sm text-muted-foreground">
+                  Total Stock Value ({stockSummary.itemCount} items):{' '}
+                </span>
+                <span className="font-semibold">
+                  ৳{' '}
+                  {stockSummary.totalValue.toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </span>
+              </TableCell>
+            </TableRow>
+          </TableFooter>
+        )}
       </Table>
     </div>
   );

@@ -53,6 +53,7 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
     expiringAndExpiredMedicines,
     filteredAndSortedItems,
     displayedItems,
+    stockSummary,
     hasMore,
     handleLoadMore,
   } = useItemManagement(userId);
@@ -125,6 +126,7 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
           onEdit={handleEditItem}
           onDelete={handleDeleteItem}
           isPending={isPending}
+          stockSummary={stockSummary}
         />
 
         {hasMore && (

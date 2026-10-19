@@ -37,18 +37,26 @@ export async function getAccountOverview(userId: string, asOfDate?: Date) {
         getSecurityDeposits(userId),
     ]);
 
-    const isBeforeOrOnCutoff = (date: any): boolean => {
-        if (!asOfDate) return true;
-        if (!date) return false;
-
+    const cutoffTs = (() => {
+        if (!asOfDate) return undefined;
         // Ensure cutoff is End of Day
         const cutoff = new Date(asOfDate);
         cutoff.setHours(23, 59, 59, 999);
-        const cutoffTs = Timestamp.fromDate(cutoff);
+        return Timestamp.fromDate(cutoff);
+    })();
+
+    const isBeforeOrOnCutoff = (date: any): boolean => {
+        if (!cutoffTs) return true;
+        if (!date) return false;
 
         const dateTimestamp = date instanceof Timestamp ? date : Timestamp.fromDate(new Date(date));
         return dateTimestamp.toMillis() <= cutoffTs.toMillis();
     };
+
+    // Nothing can exist after a cutoff that is now or later, so item.stock
+    // already reflects the snapshot and the per-item back-calculation in
+    // calculateStockAndAssets would only scan every sale to add zero back.
+    const isLiveSnapshot = !cutoffTs || cutoffTs.toMillis() >= Date.now();
 
     const filteredCapital = allCapital.filter((capital: any) =>
         capital.source === 'Initial Capital' || isBeforeOrOnCutoff(capital.date)
@@ -179,7 +187,8 @@ export async function getAccountOverview(userId: string, asOfDate?: Date) {
         allSales,
         allPurchases,
         filteredPurchases,
-        isBeforeOrOnCutoff
+        isBeforeOrOnCutoff,
+        isLiveSnapshot
     );
 
     // Include payables that were outstanding as-of the cutoff date.

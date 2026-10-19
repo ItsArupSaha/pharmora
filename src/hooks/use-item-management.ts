@@ -171,6 +171,7 @@ export function useItemManagement(userId: string) {
     setVisibleCount: itemFilters.setVisibleCount,
     filteredAndSortedItems: itemFilters.filteredAndSortedItems,
     displayedItems: itemFilters.displayedItems,
+    stockSummary: itemFilters.stockSummary,
     hasMore: itemFilters.hasMore,
     handleLoadMore: itemFilters.handleLoadMore,
   };

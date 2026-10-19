@@ -109,6 +109,17 @@ export function useItemFilters({ allItems }: UseItemFiltersProps) {
     return filteredAndSortedItems.slice(0, visibleCount);
   }, [filteredAndSortedItems, visibleCount]);
 
+  // Cost value of the filtered stock — the same valuation the balance sheet's
+  // live "Stock Value" uses (stock × production price, negative stock clamped
+  // to zero), so the two numbers reconcile. Computed in memory; no extra reads.
+  const stockSummary = React.useMemo(() => {
+    let totalValue = 0;
+    for (const item of filteredAndSortedItems) {
+      totalValue += Math.max(item.stock, 0) * (item.productionPrice || 0);
+    }
+    return { itemCount: filteredAndSortedItems.length, totalValue };
+  }, [filteredAndSortedItems]);
+
   const hasMore = visibleCount < filteredAndSortedItems.length;
 
   const handleLoadMore = () => {
@@ -130,6 +141,7 @@ export function useItemFilters({ allItems }: UseItemFiltersProps) {
     setVisibleCount,
     filteredAndSortedItems,
     displayedItems,
+    stockSummary,
     hasMore,
     handleLoadMore,
   };

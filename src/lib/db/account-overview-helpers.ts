@@ -98,43 +98,51 @@ export function calculateCashAndBank(
     return { cash, bank, otherAssets };
 }
 
+// Purchases carry no item reference, so lines match items by category + exact
+// name spelling — the only linkage the purchase schema stores.
+const purchaseLineKey = (categoryId: string, itemName: string) => `${categoryId}::${itemName}`;
+
 export function calculateStockAndAssets(
   allItems: Item[],
   allSales: Sale[],
   allPurchases: Purchase[],
   filteredPurchases: Purchase[],
-  isBeforeOrOnCutoff: (date: any) => boolean
+  isBeforeOrOnCutoff: (date: any) => boolean,
+  isLiveSnapshot: boolean
 ) {
     let stockValue = 0;
     let assetItemsValue = 0;
 
-    allItems.forEach((item: any) => {
-        const itemSalesAfterCutoff = allSales
-            .filter((sale: any) => !isBeforeOrOnCutoff(sale.date))
-            .reduce((saleSum: number, sale: any) => {
-                const saleItems = Array.isArray(sale.items) ? sale.items : [];
-                const saleItem = saleItems.find((si: any) => si.itemId === item.id);
-                if (saleItem) {
-                    return saleSum + toNum(saleItem.quantity);
-                }
-                return saleSum;
-            }, 0);
+    // Historical view only: rebuild the stock that existed on the cutoff date
+    // by undoing every transaction recorded after it. Each ledger is tallied
+    // in a single pass and each item then reads its tally with one Map
+    // lookup, instead of rescanning every sale and purchase once per item.
+    // On the live snapshot item.stock already reflects the present, so the
+    // tallies stay empty and the lookups add zero.
+    const soldAfterCutoff = new Map<string, number>();
+    const purchasedAfterCutoff = new Map<string, number>();
+    if (!isLiveSnapshot) {
+        allSales.forEach((sale) => {
+            if (isBeforeOrOnCutoff(sale.date)) return;
+            for (const line of sale.items) {
+                soldAfterCutoff.set(line.itemId, (soldAfterCutoff.get(line.itemId) ?? 0) + toNum(line.quantity));
+            }
+        });
+        allPurchases.forEach((purchase) => {
+            if (isBeforeOrOnCutoff(purchase.date)) return;
+            for (const line of purchase.items) {
+                const key = purchaseLineKey(line.categoryId, line.itemName);
+                purchasedAfterCutoff.set(key, (purchasedAfterCutoff.get(key) ?? 0) + toNum(line.quantity));
+            }
+        });
+    }
 
-        const itemPurchasesAfterCutoff = allPurchases
-            .filter((purchase: any) => !isBeforeOrOnCutoff(purchase.date))
-            .reduce((purchaseSum: number, purchase: any) => {
-                const purchaseItems = Array.isArray(purchase.items) ? purchase.items : [];
-                const purchaseItem = purchaseItems.find(
-                    (pi: any) => pi.categoryId === item.categoryId && pi.itemName === item.title
-                );
-                if (purchaseItem) {
-                    return purchaseSum + toNum(purchaseItem.quantity);
-                }
-                return purchaseSum;
-            }, 0);
-
+    allItems.forEach((item: Item) => {
         const closingStockAsOfDate =
-            toNum(item.stock) + itemSalesAfterCutoff - itemPurchasesAfterCutoff;
+            toNum(item.stock) +
+            (soldAfterCutoff.get(item.id) ?? 0) -
+            (purchasedAfterCutoff.get(purchaseLineKey(item.categoryId, item.title)) ?? 0);
+
         const unitCost = toNum(item.productionPrice);
         const value = closingStockAsOfDate > 0 ? unitCost * closingStockAsOfDate : 0;
         
