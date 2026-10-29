@@ -36,8 +36,8 @@ export function AppSidebar() {
   const [stockWarningCount, setStockWarningCount] = React.useState(0);
 
   const visibleFeatures = React.useMemo(
-    () => getVisibleFeatures(authUser?.appMode, authUser?.disabledFeatures),
-    [authUser?.appMode, authUser?.disabledFeatures]
+    () => getVisibleFeatures(authUser?.appMode, authUser?.disabledFeatures, authUser?.storeType),
+    [authUser?.appMode, authUser?.disabledFeatures, authUser?.storeType]
   );
 
   const filterVisible = React.useCallback(

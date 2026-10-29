@@ -24,6 +24,7 @@ function usePageTitle(pathname: string, isPharmacy: boolean): string {
       { href: '/reports', label: 'Reports' },
       { href: '/balance-sheet', label: 'Business Overview' },
       { href: '/dues', label: 'Customer Dues' },
+      { href: '/receivables', label: 'Receivables' },
       { href: '/payables', label: 'Payables (Suppliers)' },
       { href: '/bulk-shelf-update', label: 'Shelf Update (Bulk)' },
     ].find((item) => pathname.startsWith(item.href));
@@ -55,12 +56,12 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   const pageTitle = usePageTitle(pathname, isPharmacy);
   const { authUser } = useAuth();
 
-  // Keeps features hidden by the user's mode (or by the admin) unreachable
-  // even when the URL is typed directly.
+  // Keeps features hidden by the user's mode, business type (or by the
+  // admin) unreachable even when the URL is typed directly.
   React.useEffect(() => {
     if (
       authUser?.onboardingComplete &&
-      !isRouteAllowed(pathname, authUser.appMode, authUser.disabledFeatures)
+      !isRouteAllowed(pathname, authUser.appMode, authUser.disabledFeatures, authUser.storeType)
     ) {
       router.replace(getLandingPath(authUser.appMode));
     }

@@ -4,6 +4,7 @@ import {
   CreditCard,
   FileText,
   FolderSync,
+  HandCoins,
   Package,
   ShieldAlert,
   ShoppingBag,
@@ -36,6 +37,7 @@ export const CORE_NAV_ITEMS: NavItem[] = [
 export const OTHER_NAV_ITEMS: NavItem[] = [
   { href: '/payables', icon: ArrowRightLeft, label: 'Payables (Suppliers)', feature: 'payables' },
   { href: '/dues', icon: Wallet, label: 'Customer Dues', feature: 'customer-dues' },
+  { href: '/receivables', icon: HandCoins, label: 'Receivables', feature: 'receivables' },
   { href: '/bulk-shelf-update', icon: FolderSync, label: 'Shelf Update (Bulk)', feature: 'shelf-update' },
 ];
 

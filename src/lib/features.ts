@@ -1,4 +1,4 @@
-import type { AppMode, FeatureKey } from './types';
+import type { AppMode, FeatureKey, StoreType } from './types';
 import { FEATURE_KEYS } from './types';
 
 // Features available in "stock management only" mode. Everything else in
@@ -10,6 +10,9 @@ export const STOCK_MODE_FEATURES: FeatureKey[] = [
   'stock-warnings',
   'shelf-update',
 ];
+
+// Features exclusive to general businesses; hidden for pharmacy accounts.
+export const GENERAL_ONLY_FEATURES: FeatureKey[] = ['receivables'];
 
 // Maps every (main) route prefix to the feature that owns it. Used by the
 // route guard to keep hidden features unreachable by typing the URL.
@@ -27,6 +30,7 @@ export const ROUTE_FEATURES: Record<string, FeatureKey> = {
   '/payables': 'payables',
   '/dues': 'customer-dues',
   '/customers': 'customer-dues',
+  '/receivables': 'receivables',
   '/bulk-shelf-update': 'shelf-update',
 };
 
@@ -38,31 +42,37 @@ export function getModeFeatures(appMode: AppMode): FeatureKey[] {
 
 export function getVisibleFeatures(
   appMode: AppMode | undefined,
-  disabledFeatures: FeatureKey[] | undefined
+  disabledFeatures: FeatureKey[] | undefined,
+  storeType?: StoreType
 ): FeatureKey[] {
   const mode = appMode ?? 'normal';
   const disabled = new Set(disabledFeatures ?? []);
-  return getModeFeatures(mode).filter((feature) => !disabled.has(feature));
+  const generalOnly = storeType === 'general' ? new Set<FeatureKey>() : new Set<FeatureKey>(GENERAL_ONLY_FEATURES);
+  return getModeFeatures(mode).filter(
+    (feature) => !disabled.has(feature) && !generalOnly.has(feature)
+  );
 }
 
 export function isFeatureVisible(
   feature: FeatureKey,
   appMode: AppMode | undefined,
-  disabledFeatures: FeatureKey[] | undefined
+  disabledFeatures: FeatureKey[] | undefined,
+  storeType?: StoreType
 ): boolean {
-  return getVisibleFeatures(appMode, disabledFeatures).includes(feature);
+  return getVisibleFeatures(appMode, disabledFeatures, storeType).includes(feature);
 }
 
 export function isRouteAllowed(
   pathname: string,
   appMode: AppMode | undefined,
-  disabledFeatures: FeatureKey[] | undefined
+  disabledFeatures: FeatureKey[] | undefined,
+  storeType?: StoreType
 ): boolean {
   const matched = Object.keys(ROUTE_FEATURES)
     .filter((prefix) => pathname.startsWith(prefix))
     .sort((a, b) => b.length - a.length)[0];
   if (!matched) return true;
-  return isFeatureVisible(ROUTE_FEATURES[matched], appMode, disabledFeatures);
+  return isFeatureVisible(ROUTE_FEATURES[matched], appMode, disabledFeatures, storeType);
 }
 
 export function getLandingPath(appMode: AppMode | undefined): string {

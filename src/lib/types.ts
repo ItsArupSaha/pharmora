@@ -11,6 +11,7 @@ export const FEATURE_KEYS = [
   'business-overview',
   'payables',
   'customer-dues',
+  'receivables',
   'shelf-update',
 ] as const;
 
