@@ -8,6 +8,7 @@ import { Phone, MapPin, User } from 'lucide-react';
 interface CustomerInfoCardProps {
   customer: {
     name: string;
+    contactName?: string;
     phone: string;
     whatsapp?: string;
     address: string;
@@ -25,6 +26,11 @@ export function CustomerInfoCard({ customer }: CustomerInfoCardProps) {
               <User className="h-5 w-5 text-muted-foreground" />
               <CardTitle className="font-headline text-3xl">{customer.name}</CardTitle>
             </div>
+            {customer.contactName && (
+              <p className="text-sm text-muted-foreground -mt-2">
+                Contact: {customer.contactName}
+              </p>
+            )}
 
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-muted-foreground">

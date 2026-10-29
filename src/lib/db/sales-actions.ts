@@ -11,7 +11,8 @@ import {
 import { db } from '../firebase';
 import { invalidateAppData } from './data-version';
 import { getCustomers } from './customers';
-import type { Item, ItemBatch, Metadata, Sale, SaleItem } from '../types';
+import { normalizeCustomerKey } from '../search-utils';
+import type { Customer, Item, ItemBatch, Metadata, Sale, SaleItem } from '../types';
 import { resolveIsSalable } from '../item-flags';
 import { allocateFEFO, sumBatchQuantities } from '../batch-allocation';
 import { batchDocRef, buildBatchData, fetchItemBatches, newBatchDocRef, type ItemBatchWithId } from './batch-utils';
@@ -229,6 +230,7 @@ function applyBatchRestores(
 export interface DueCustomerInput {
   name: string;
   phone: string;
+  contactName?: string;
 }
 
 export async function addSale(
@@ -250,41 +252,40 @@ export async function addSale(
     const metadataRef = doc(userRef, 'metadata', 'counters');
     const saleDate = new Date(data.date) || new Date();
 
-    // Due sales carry name+phone instead of a customer id. Resolution order
-    // is the dedup contract: phone digits first (phone = identity), then a
-    // case/spacing-insensitive name match; only a genuinely new person is
-    // created. Cash/Bank sales stay on the walk-in customer.
+    // Due and split sales both carry a shop name + phone instead of a
+    // customer id. The shop name is the identity: an exact (case/spacing-
+    // insensitive) name match reuses the shop no matter what, so one shop
+    // can never be created twice; a phone-digit match (with country-prefix
+    // tolerance) is the fallback. Only a genuinely new shop is created.
+    // Cash/Bank sales stay on the walk-in customer.
     let customerRef = doc(customersCollection, data.customerId);
     let createCustomerInTx = false;
-    if (data.paymentMethod === 'Due') {
+    let backfillExistingCustomer = false;
+    if (data.paymentMethod === 'Due' || data.paymentMethod === 'Split') {
       const name = (data.dueCustomer?.name || '').trim();
       const phoneDigits = (data.dueCustomer?.phone || '').replace(/\D/g, '');
       if (!name || phoneDigits.length < 6 || phoneDigits.length > 15) {
-        return { success: false, error: 'Due sales need a customer name and a valid phone number.' };
+        return { success: false, error: 'Due and split sales need a shop name and a valid phone number.' };
       }
-      const phoneTail = phoneDigits.slice(-10);
-      const nameKey = (v: string) => v.trim().toLowerCase().replace(/\s+/g, ' ');
       const existing = await getCustomers(userId); // cached, version-guarded
-      const byPhone = existing.find((c) => {
-        const d = (c.phone || '').replace(/\D/g, '');
-        if (d === phoneDigits) return true;
-        // Tolerate country-prefix differences (8801… vs 01…) on 6+ digit numbers.
-        return d.length >= 6 && phoneDigits.length >= 6 &&
-          (d.endsWith(phoneTail) || phoneDigits.endsWith(d.slice(-10)));
-      });
-      const resolved =
-        byPhone ||
-        existing.find((c) => nameKey(c.name) === nameKey(name) && (c.phone || '').replace(/\D/g, '') === phoneDigits);
-      if (resolved) {
-        customerRef = doc(customersCollection, resolved.id);
+      const byShopName = existing.find(
+        (c) => normalizeCustomerKey(c.name) === normalizeCustomerKey(name) && normalizeCustomerKey(c.name) !== 'walk-in customer'
+      );
+      const phoneTail = phoneDigits.slice(-10);
+      const byPhone = byShopName ||
+        existing.find((c) => {
+          const d = (c.phone || '').replace(/\D/g, '');
+          if (d === phoneDigits) return true;
+          // Tolerate country-prefix differences (8801… vs 01…) on 6+ digit numbers.
+          return d.length >= 6 && phoneDigits.length >= 6 &&
+            (d.endsWith(phoneTail) || phoneDigits.endsWith(d.slice(-10)));
+        });
+      if (byPhone) {
+        customerRef = doc(customersCollection, byPhone.id);
+        backfillExistingCustomer = true;
       } else {
-        const nameOnly = existing.find((c) => nameKey(c.name) === nameKey(name) && nameKey(c.name) !== 'walk-in customer');
-        if (nameOnly) {
-          customerRef = doc(customersCollection, nameOnly.id);
-        } else {
-          customerRef = doc(customersCollection); // new customer
-          createCustomerInTx = true;
-        }
+        customerRef = doc(customersCollection); // new customer
+        createCustomerInTx = true;
       }
       data.customerId = customerRef.id;
     }
@@ -310,9 +311,25 @@ export async function addSale(
           address: 'N/A',
           openingBalance: 0,
           dueBalance: 0,
+          ...(data.dueCustomer?.contactName ? { contactName: data.dueCustomer.contactName } : {}),
         });
       } else if (!customerDoc.exists()) {
         throw new Error(`Customer with id ${data.customerId} does not exist!`);
+      } else if (backfillExistingCustomer) {
+        // Matched an existing shop: fill in contact details only where the
+        // record is missing them — never overwrite what is already stored.
+        const existingData = (customerDoc.data() || {}) as Partial<Customer>;
+        const patch: { phone?: string; contactName?: string } = {};
+        const existingPhone = (existingData.phone || '').replace(/\D/g, '');
+        if (!existingPhone && data.dueCustomer?.phone) {
+          patch.phone = data.dueCustomer.phone.trim();
+        }
+        if (!existingData.contactName && data.dueCustomer?.contactName) {
+          patch.contactName = data.dueCustomer.contactName;
+        }
+        if (Object.keys(patch).length > 0) {
+          transaction.update(customerRef, patch);
+        }
       }
 
       // Credit can only spend the advance the customer really has (M2 guard).

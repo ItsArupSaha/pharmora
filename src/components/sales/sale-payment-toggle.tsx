@@ -9,10 +9,17 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
+import { useStoreType } from '@/hooks/use-store-type';
 import { cn } from '@/lib/utils';
 
 export function SalePaymentToggle() {
-  const { control } = useFormContext();
+  const { control, watch } = useFormContext();
+  const { isGeneral } = useStoreType();
+  const currentMethod = watch('paymentMethod');
+  // Due/Split are general-business features for now; pharmacy keeps
+  // Cash-only. They still render when editing a legacy Due/Split sale so
+  // the old record can be saved back unchanged.
+  const showDueOptions = isGeneral || currentMethod === 'Due' || currentMethod === 'Split';
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -66,11 +73,24 @@ export function SalePaymentToggle() {
                 value={field.value || 'Cash'}
                 className="flex gap-4 pt-2"
               >
-                {/* Bank/Due hidden for now — Cash is the only active method. */}
+                {/* Bank stays hidden everywhere. Due (full credit) and Split
+                    (part cash now, rest to dues) are general-business only. */}
                 <FormItem className="flex items-center space-x-2">
                   <FormControl><RadioGroupItem value="Cash" id="form-cash" /></FormControl>
                   <FormLabel htmlFor="form-cash" className="font-normal cursor-pointer">Cash</FormLabel>
                 </FormItem>
+                {showDueOptions && (
+                  <>
+                    <FormItem className="flex items-center space-x-2">
+                      <FormControl><RadioGroupItem value="Due" id="form-due" /></FormControl>
+                      <FormLabel htmlFor="form-due" className="font-normal cursor-pointer">Due</FormLabel>
+                    </FormItem>
+                    <FormItem className="flex items-center space-x-2">
+                      <FormControl><RadioGroupItem value="Split" id="form-split" /></FormControl>
+                      <FormLabel htmlFor="form-split" className="font-normal cursor-pointer">Split</FormLabel>
+                    </FormItem>
+                  </>
+                )}
               </RadioGroup>
             </FormControl>
             <FormMessage />

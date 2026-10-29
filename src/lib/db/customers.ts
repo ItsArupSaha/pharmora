@@ -15,6 +15,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import type { Customer, CustomerWithDue } from '../types';
+import { normalizeCustomerKey } from '../search-utils';
 import { docToCustomer } from './utils';
 import { cachedCollection } from './collection-cache';
 import { invalidateAppData, readLedgerVersion } from './data-version';
@@ -111,9 +112,29 @@ export async function getCustomersWithDueBalancePaginated({ userId, pageLimit = 
 }
 
 
+// --- Duplicate shop-name guard ---
+// The shop name is the customer's identity, so the same name (compared
+// case- and spacing-insensitively) can never be registered twice. The
+// customer list is small and cache-backed, so this is an in-memory scan.
+async function findDuplicateShopName(
+    userId: string,
+    name: string,
+    excludeId?: string
+): Promise<Customer | undefined> {
+    const existing = await getCustomers(userId);
+    const key = normalizeCustomerKey(name);
+    return existing.find((c) => c.id !== excludeId && normalizeCustomerKey(c.name) === key);
+}
+
 export async function addCustomer(userId: string, data: Omit<Customer, 'id' | 'dueBalance'>) {
     if (!db || !userId) return;
     const customersCollection = collection(db, 'users', userId, 'customers');
+
+    // --- Duplicate check by shop name ---
+    const duplicateShop = await findDuplicateShopName(userId, data.name);
+    if (duplicateShop) {
+        throw new Error(`A shop named "${data.name}" already exists.`);
+    }
 
     // --- Duplicate check by phone number ---
     const phoneQuery = query(customersCollection, where('phone', '==', data.phone));
@@ -141,6 +162,11 @@ export async function addCustomer(userId: string, data: Omit<Customer, 'id' | 'd
 
 export async function updateCustomer(userId: string, id: string, data: Omit<Customer, 'id' | 'dueBalance'>) {
     if (!db || !userId) return;
+    // Renaming to a name another shop already has is blocked, same rule as add.
+    const duplicateShop = await findDuplicateShopName(userId, data.name, id);
+    if (duplicateShop) {
+        throw new Error(`A shop named "${data.name}" already exists.`);
+    }
     const customerRef = doc(db, 'users', userId, 'customers', id);
     await updateDoc(customerRef, data);
     await invalidateAppData(userId, { scope: 'ledger' });

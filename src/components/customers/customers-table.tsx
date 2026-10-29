@@ -31,7 +31,7 @@ export function CustomersTable({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Name</TableHead>
+            <TableHead>Shop / Customer</TableHead>
             <TableHead>Phone</TableHead>
             <TableHead>Address</TableHead>
             <TableHead className="text-right">Balance</TableHead>
@@ -63,9 +63,14 @@ export function CustomersTable({
             customers.map((customer) => (
               <TableRow key={customer.id}>
                 <TableCell className="font-medium">
-                  <Link href={`/customers/${customer.id}`} className="hover:underline text-primary">
-                    {customer.name}
-                  </Link>
+                  <div className="flex flex-col">
+                    <Link href={`/customers/${customer.id}`} className="hover:underline text-primary">
+                      {customer.name}
+                    </Link>
+                    {customer.contactName && (
+                      <span className="text-xs text-muted-foreground">{customer.contactName}</span>
+                    )}
+                  </div>
                 </TableCell>
                 <TableCell>{customer.phone}</TableCell>
                 <TableCell>{customer.address}</TableCell>

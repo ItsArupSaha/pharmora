@@ -76,7 +76,11 @@ export function DownloadSaleMemo({ sale, customer, items, user }: DownloadSaleMe
     doc.setFont('helvetica', 'normal');
     const nameLines = doc.splitTextToSize(String(customer?.name || ''), 110);
     doc.text(nameLines, 14, infoY + 5);
-    const addressY = infoY + 5 + (nameLines.length * 5);
+    let addressY = infoY + 5 + (nameLines.length * 5);
+    if (customer?.contactName) {
+      doc.text(`Attn: ${customer.contactName}`, 14, addressY);
+      addressY += 5;
+    }
     const addressLines = doc.splitTextToSize(String(customer?.address || ''), 110);
     doc.text(addressLines, 14, addressY);
     const phoneY = addressY + (addressLines.length * 5);

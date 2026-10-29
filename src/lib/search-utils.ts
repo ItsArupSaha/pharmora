@@ -13,6 +13,16 @@ import {
 // Re-exported for existing callers.
 export { normalizePhonetic, getLevenshteinDistance };
 
+/**
+ * Canonical identity key for a customer/shop name: case- and spacing-
+ * insensitive. Two names with the same key are the same shop — this drives
+ * the "one shop name cannot be registered twice" rule everywhere customers
+ * are created or matched.
+ */
+export function normalizeCustomerKey(value: string | null | undefined): string {
+  return (value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
 const splitWords = (s: string): string[] => s.toLowerCase().trim().split(/[\s\-,.]+/).filter(Boolean);
 
 /**

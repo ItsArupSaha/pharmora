@@ -78,7 +78,14 @@ export function DuesPage() {
             <TableBody>
               {customers.map((c) => (
                 <TableRow key={c.id}>
-                  <TableCell className="font-medium">{c.name}</TableCell>
+                  <TableCell className="font-medium">
+                    <div className="flex flex-col">
+                      <span>{c.name}</span>
+                      {c.contactName && (
+                        <span className="text-xs text-muted-foreground">{c.contactName}</span>
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell>
                     <a href={`tel:${c.phone}`} className="inline-flex items-center gap-1.5 text-primary hover:underline">
                       <Phone className="h-3.5 w-3.5" /> {c.phone}

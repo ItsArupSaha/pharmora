@@ -25,6 +25,7 @@ export function useCustomerManagement(userId: string) {
     resolver: zodResolver(customerSchema),
     defaultValues: {
       name: '',
+      contactName: '',
       phone: '',
       whatsapp: '',
       address: '',
@@ -40,7 +41,7 @@ export function useCustomerManagement(userId: string) {
 
   const handleAddNew = () => {
     setEditingCustomer(null);
-    form.reset({ name: '', phone: '', whatsapp: '', address: '', openingBalance: 0 });
+    form.reset({ name: '', contactName: '', phone: '', whatsapp: '', address: '', openingBalance: 0 });
     setIsDialogOpen(true);
   };
 
@@ -62,13 +63,18 @@ export function useCustomerManagement(userId: string) {
   };
 
   const onSubmit = (data: CustomerFormValues) => {
+    // An empty contact field is stored as absent, not as ''.
+    const payload = {
+      ...data,
+      contactName: data.contactName?.trim() || undefined,
+    };
     startTransition(async () => {
       try {
         if (editingCustomer) {
-          await updateCustomer(userId, editingCustomer.id, data);
+          await updateCustomer(userId, editingCustomer.id, payload);
           toast({ title: 'Customer Updated', description: 'The customer details have been saved.' });
         } else {
-          await addCustomer(userId, data);
+          await addCustomer(userId, payload);
           toast({ title: 'Customer Added', description: 'The new customer has been added.' });
         }
         if (searchPaginate.searchQuery.trim()) {

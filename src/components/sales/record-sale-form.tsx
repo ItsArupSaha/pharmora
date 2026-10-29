@@ -14,6 +14,7 @@ import { SaleMemo } from '../sale-memo';
 import { saleFormSchema, type SaleFormValues } from './schema';
 import { SalePaymentToggle } from './sale-payment-toggle';
 import { DueCustomerFields } from './due-customer-fields';
+import { SplitPaymentFields } from './split-payment-fields';
 import { SaleItemsTable } from './sale-items-table';
 import { SaleSummaryCard } from './sale-summary-card';
 
@@ -33,8 +34,10 @@ const getDefaultValues = () => ({
   discountType: 'none' as const,
   discountValue: 0,
   paymentMethod: 'Cash' as const,
-  dueCustomerName: '',
+  dueShopName: '',
   dueCustomerPhone: '',
+  dueContactName: '',
+  amountPaid: 0,
   extraSales: 0,
   total: 0,
 });
@@ -50,6 +53,9 @@ export function RecordSaleForm({
   const [isPending, startTransition] = React.useTransition();
   const [completedSale, setCompletedSale] = React.useState<Sale | null>(null);
   const [lastSale, setLastSale] = React.useState<Sale | null>(null);
+  // Shop typed on the last due/split sale — the memo bills the shop, which
+  // may not exist in the local customers list yet when just created.
+  const [lastDueShop, setLastDueShop] = React.useState<Customer | null>(null);
 
   const form = useForm<SaleFormValues>({
     resolver: zodResolver(saleFormSchema),
@@ -115,15 +121,23 @@ export function RecordSaleForm({
 
     startTransition(async () => {
       try {
-        const isDue = data.paymentMethod === 'Due';
+        // Due and split sales both owe money to a shop: the customer is
+        // resolved/created on the server from the typed shop name + phone.
+        // Cash/Bank sales stay on the walk-in record. Split pays part in
+        // cash now; the remainder lands on the shop's dues.
+        const hasDueCustomer = data.paymentMethod === 'Due' || data.paymentMethod === 'Split';
         const saleData = {
           ...data,
-          // Due sales get their customer resolved/created on the server from
-          // the typed name+phone; cash/bank sales stay on the walk-in record.
-          customerId: isDue ? '' : walkInCustomer?.id || '',
-          dueCustomer: isDue
-            ? { name: data.dueCustomerName?.trim() || '', phone: data.dueCustomerPhone?.trim() || '' }
+          customerId: hasDueCustomer ? '' : walkInCustomer?.id || '',
+          dueCustomer: hasDueCustomer
+            ? {
+                name: data.dueShopName?.trim() || '',
+                phone: data.dueCustomerPhone?.trim() || '',
+                contactName: data.dueContactName?.trim() || undefined,
+              }
             : undefined,
+          amountPaid: data.paymentMethod === 'Split' ? Number(data.amountPaid) : undefined,
+          splitPaymentMethod: data.paymentMethod === 'Split' ? ('Cash' as const) : undefined,
           items: activeItems as any,
           date: data.date.toISOString(),
           discountType: 'none' as const,
@@ -135,6 +149,19 @@ export function RecordSaleForm({
         if (result?.success && result.sale) {
           setCompletedSale(result.sale);
           setLastSale(result.sale);
+          setLastDueShop(
+            hasDueCustomer
+              ? {
+                  id: result.sale.customerId || '',
+                  name: data.dueShopName?.trim() || '',
+                  contactName: data.dueContactName?.trim() || undefined,
+                  phone: data.dueCustomerPhone?.trim() || '',
+                  address: 'N/A',
+                  openingBalance: 0,
+                  dueBalance: 0,
+                }
+              : null
+          );
           onSuccess?.(result.sale);
         } else {
           toast({ variant: 'destructive', title: 'Error', description: result.error || 'Failed to record sale.' });
@@ -151,13 +178,20 @@ export function RecordSaleForm({
   }, [items]);
 
   const memoSale = completedSale || lastSale;
+  // Due/split memos bill the shop they were sold to; cash/bank bill walk-in.
+  const memoCustomer =
+    memoSale && (memoSale.paymentMethod === 'Due' || memoSale.paymentMethod === 'Split')
+      ? lastDueShop || walkInCustomer
+      : walkInCustomer;
 
   return (
     <div className="space-y-6 w-full max-w-none">
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
           <SalePaymentToggle />
-          {form.watch('paymentMethod') === 'Due' && <DueCustomerFields customers={customers} />}
+          {(form.watch('paymentMethod') === 'Due' || form.watch('paymentMethod') === 'Split') && (
+            <DueCustomerFields customers={customers} />
+          )}
           <SaleItemsTable
             items={sellableItems}
             fields={fields}
@@ -165,6 +199,7 @@ export function RecordSaleForm({
             appendRow={handleAddNewRow}
           />
           <SaleSummaryCard subtotal={subtotal} />
+          {form.watch('paymentMethod') === 'Split' && <SplitPaymentFields />}
           <div className="flex justify-end gap-2 border-t pt-4">
             {lastSale && !completedSale && (
               <Button
@@ -190,7 +225,7 @@ export function RecordSaleForm({
           {memoSale && authUser && (
             <SaleMemo
               sale={memoSale}
-              customer={walkInCustomer}
+              customer={memoCustomer}
               items={items}
               onNewSale={handleResetForm}
               user={authUser}

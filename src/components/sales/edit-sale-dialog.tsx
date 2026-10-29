@@ -21,7 +21,7 @@ import type { Customer, Item, Sale } from '@/lib/types';
 import { saleFormSchema, type SaleFormValues } from './schema';
 import { SalePaymentToggle } from './sale-payment-toggle';
 import { SaleItemsTable } from './sale-items-table';
-import { SalePaymentSection } from './sale-payment-section';
+import { SplitPaymentFields } from './split-payment-fields';
 import { SaleSummaryCard } from './sale-summary-card';
 
 interface EditSaleDialogProps {
@@ -55,8 +55,10 @@ export function EditSaleDialog({
       discountType: 'none',
       discountValue: 0,
       paymentMethod: 'Cash',
-      dueCustomerName: '',
+      dueShopName: '',
       dueCustomerPhone: '',
+      dueContactName: '',
+      amountPaid: 0,
       extraSales: 0,
       total: 0,
     },
@@ -69,6 +71,7 @@ export function EditSaleDialog({
 
   React.useEffect(() => {
     if (isOpen && sale) {
+      const saleCustomer = customers.find((c) => c.id === sale.customerId);
       form.reset({
         customerId: sale.customerId || '',
         date: sale.date ? new Date(sale.date) : new Date(),
@@ -79,17 +82,32 @@ export function EditSaleDialog({
         })),
         discountType: sale.discountType || 'none',
         discountValue: sale.discountValue || 0,
-        // Legacy Split/Paid-by-Credit sales default to Due when edited.
-        paymentMethod: (['Cash', 'Bank', 'Due'] as const).includes(sale.paymentMethod as any)
-          ? (sale.paymentMethod as 'Cash' | 'Bank' | 'Due')
+        // Legacy Paid-by-Credit sales default to Due when edited; Split
+        // sales stay editable as Split with their original paid amount.
+        paymentMethod: (['Cash', 'Bank', 'Due', 'Split'] as const).includes(sale.paymentMethod as any)
+          ? (sale.paymentMethod as 'Cash' | 'Bank' | 'Due' | 'Split')
           : 'Due',
-        dueCustomerName: '',
-        dueCustomerPhone: '',
+        dueShopName: saleCustomer?.name || '',
+        dueCustomerPhone: saleCustomer?.phone || '',
+        dueContactName: saleCustomer?.contactName || '',
+        amountPaid: sale.amountPaid ?? 0,
         extraSales: sale.extraSales || 0,
         total: sale.total || 0,
       });
     }
-  }, [isOpen, sale, form]);
+  }, [isOpen, sale, customers, form]);
+
+  // Due/split validation requires the shop identity; keep it in sync with
+  // the customer selected above (updateSale attributes dues by customerId).
+  const watchCustomerId = useWatch({ control: form.control, name: 'customerId' });
+  React.useEffect(() => {
+    if (!watchCustomerId) return;
+    const selected = customers.find((c) => c.id === watchCustomerId);
+    if (selected) {
+      form.setValue('dueShopName', selected.name, { shouldValidate: false });
+      form.setValue('dueCustomerPhone', selected.phone, { shouldValidate: false });
+    }
+  }, [watchCustomerId, customers, form]);
 
   const watchItems = useWatch({ control: form.control, name: 'items' }) || [];
 
@@ -125,6 +143,11 @@ export function EditSaleDialog({
         const saleData = {
           ...data,
           customerId: data.customerId || sale.customerId || '',
+          // The edit dialog attributes dues via the customer select; the
+          // typed shop fields are validation-only here. Split keeps its
+          // paid-now amount; other methods carry none.
+          amountPaid: data.paymentMethod === 'Split' ? Number(data.amountPaid) : undefined,
+          splitPaymentMethod: data.paymentMethod === 'Split' ? ('Cash' as const) : undefined,
           items: activeItems as any,
           date: data.date.toISOString(),
           discountType: data.discountType || 'none',
@@ -221,7 +244,7 @@ export function EditSaleDialog({
               />
 
               <Separator />
-              <SalePaymentSection />
+              {form.watch('paymentMethod') === 'Split' && <SplitPaymentFields />}
               <SaleSummaryCard subtotal={subtotal} />
             </div>
 

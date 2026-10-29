@@ -51,7 +51,10 @@ export type AuthUser = {
 
 export type Customer = {
   id: string;
+  /** Shop / business name — the customer's identity; unique per account. */
   name: string;
+  /** Optional contact person at the shop. */
+  contactName?: string;
   phone: string;
   whatsapp?: string;
   address: string;

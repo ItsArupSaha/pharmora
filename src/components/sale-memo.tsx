@@ -63,6 +63,7 @@ export function SaleMemo({ sale, customer, items, user, onNewSale }: SaleMemoPro
             <div>
               <h3 className="font-semibold mb-1">Billed To</h3>
               <p>{customer.name}</p>
+              {customer.contactName && <p className="text-muted-foreground">Attn: {customer.contactName}</p>}
               <p>{customer.address}</p>
             </div>
             <div className="text-right">

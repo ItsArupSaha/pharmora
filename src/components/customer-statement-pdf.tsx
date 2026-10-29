@@ -50,8 +50,13 @@ export default function CustomerStatementPDF({ customer, sales, items }: Custome
     doc.text('Customer:', 14, 45);
     doc.setFont('helvetica', 'normal');
     doc.text(customer.name, 38, 45);
-    doc.text(customer.address, 38, 51);
-    doc.text(customer.phone, 38, 57);
+    let infoRow = 51;
+    if (customer.contactName) {
+      doc.text(`Attn: ${customer.contactName}`, 38, infoRow);
+      infoRow += 6;
+    }
+    doc.text(customer.address, 38, infoRow);
+    doc.text(customer.phone, 38, infoRow + 6);
 
     doc.setFont('helvetica', 'bold');
     doc.text('Date:', 140, 45);
