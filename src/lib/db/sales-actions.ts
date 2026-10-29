@@ -258,7 +258,12 @@ export async function addSale(
     // can never be created twice; a phone-digit match (with country-prefix
     // tolerance) is the fallback. Only a genuinely new shop is created.
     // Cash/Bank sales stay on the walk-in customer.
-    let customerRef = doc(customersCollection, data.customerId);
+    // doc() cannot be built from an empty id, so a missing customerId gets
+    // a throwaway placeholder ref — the Due/Split block below always
+    // replaces it, and Cash/Bank without one is rejected right after.
+    let customerRef = data.customerId
+      ? doc(customersCollection, data.customerId)
+      : doc(customersCollection);
     let createCustomerInTx = false;
     let backfillExistingCustomer = false;
     if (data.paymentMethod === 'Due' || data.paymentMethod === 'Split') {
@@ -288,6 +293,11 @@ export async function addSale(
         createCustomerInTx = true;
       }
       data.customerId = customerRef.id;
+    } else if (!data.customerId) {
+      return {
+        success: false,
+        error: 'No customer record found to attribute this sale to. Please refresh the page and try again.',
+      };
     }
 
     // Server-side law (M3): the browser never decides money. Quantities must
@@ -511,9 +521,12 @@ export async function deleteSale(userId: string, saleId: string): Promise<{ succ
       }
       const saleToDelete = docToSale(saleDoc);
 
-      const customerRef = doc(userRef, 'customers', saleToDelete.customerId);
-      const customerDoc = await transaction.get(customerRef);
-      if (!customerDoc.exists()) {
+      // Legacy sales may carry no customerId; skip balance reversal then.
+      const customerRef = saleToDelete.customerId
+        ? doc(userRef, 'customers', saleToDelete.customerId)
+        : null;
+      const customerDoc = customerRef ? await transaction.get(customerRef) : null;
+      if (customerRef && customerDoc && !customerDoc.exists()) {
         console.warn(`Customer ${saleToDelete.customerId} not found during sale deletion.`);
       }
 
@@ -542,7 +555,7 @@ export async function deleteSale(userId: string, saleId: string): Promise<{ succ
       }
 
       // 2. Adjust customer balance
-      if (customerDoc.exists()) {
+      if (customerRef && customerDoc?.exists()) {
         let amountToReverse = 0;
         if (saleToDelete.paymentMethod === 'Due' || saleToDelete.paymentMethod === 'Split') {
           amountToReverse = saleToDelete.total - (saleToDelete.amountPaid || 0);
@@ -655,8 +668,26 @@ export async function updateSale(
     );
     if (updPaidError) return { success: false, error: updPaidError };
 
+    // Every sale must keep a customer: the submitted id, else the sale's
+    // original one, else the Walk-in Customer record. doc() cannot be built
+    // from an empty id, so legacy sales without one must be attributed here.
+    let attributedCustomerId = data.customerId || oldSale.customerId;
+    if (!attributedCustomerId) {
+      const existing = await getCustomers(userId); // cached, version-guarded
+      const walkIn = existing.find((c) => normalizeCustomerKey(c.name) === 'walk-in customer');
+      if (!walkIn) {
+        return { success: false, error: 'This sale has no customer record and no Walk-in Customer exists.' };
+      }
+      attributedCustomerId = walkIn.id;
+    }
+    data.customerId = attributedCustomerId;
+
     const result = await runTransaction(db, async (transaction) => {
-      const oldCustomerRef = doc(customersCollection, oldSale.customerId);
+      // A legacy sale with no stored customer is attributed to the same
+      // customer as the update, so both refs collapse into one.
+      const oldCustomerRef = oldSale.customerId
+        ? doc(customersCollection, oldSale.customerId)
+        : doc(customersCollection, data.customerId);
       const newCustomerRef = doc(customersCollection, data.customerId);
 
       const oldCustomerDoc = await transaction.get(oldCustomerRef);
