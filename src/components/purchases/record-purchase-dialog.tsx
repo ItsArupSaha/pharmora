@@ -15,6 +15,7 @@ import { Form, FormLabel } from '@/components/ui/form';
 import { Separator } from '@/components/ui/separator';
 import type { Category, Purchase } from '@/lib/types';
 import { useRecordPurchase } from '@/hooks/use-record-purchase';
+import { useStoreType } from '@/hooks/use-store-type';
 import { PurchaseItemRow } from './purchase-item-row';
 import { PurchasePaymentSection } from './purchase-payment-section';
 import { PurchaseSummarySection } from './purchase-summary-section';
@@ -39,6 +40,7 @@ export function RecordPurchaseDialog({
   onSuccess,
   onAddCategoryClick,
 }: RecordPurchaseDialogProps) {
+  const { isPharmacy } = useStoreType();
   const {
     form,
     fields,
@@ -96,6 +98,7 @@ export function RecordPurchaseDialog({
                     onAddCategoryClick={onAddCategoryClick}
                     onRemove={() => remove(index)}
                     disabledRemove={fields.length === 1}
+                    showGroup={isPharmacy}
                   />
                 ))}
               </div>

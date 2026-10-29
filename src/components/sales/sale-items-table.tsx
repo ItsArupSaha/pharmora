@@ -4,6 +4,7 @@ import * as React from 'react';
 import { useFormContext } from 'react-hook-form';
 import { PlusCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useStoreType } from '@/hooks/use-store-type';
 import type { Item } from '@/lib/types';
 import { SaleItemsTableRow } from './sale-items-table-row';
 
@@ -21,6 +22,7 @@ export function SaleItemsTable({
   appendRow,
 }: SaleItemsTableProps) {
   const { watch } = useFormContext();
+  const { isPharmacy } = useStoreType();
   const watchItems = watch('items') || [];
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTableElement>) => {
@@ -95,7 +97,9 @@ export function SaleItemsTable({
           <thead className="bg-slate-100 dark:bg-slate-900 border-b border-slate-300 dark:border-slate-700 text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 select-none">
             <tr>
               <th className="border border-slate-300 dark:border-slate-700 p-2 w-6 text-center bg-slate-100/80 dark:bg-slate-900/80">#</th>
-              <th className="border border-slate-300 dark:border-slate-700 p-2 min-w-[120px]">Medicine / Item</th>
+              <th className="border border-slate-300 dark:border-slate-700 p-2 min-w-[120px]">
+                {isPharmacy ? 'Medicine / Item' : 'Item'}
+              </th>
               <th className="border border-slate-300 dark:border-slate-700 p-2 w-14 text-center">Quantity</th>
               <th className="border border-slate-300 dark:border-slate-700 p-2 w-24 text-right">Total (৳)</th>
               <th className="border border-slate-300 dark:border-slate-700 p-2 w-10 text-center bg-slate-100/80 dark:bg-slate-900/80">Action</th>

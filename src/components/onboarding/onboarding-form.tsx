@@ -15,14 +15,17 @@ import {
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2 } from 'lucide-react';
+import type { OnboardingFormValues } from '@/app/onboarding/schema';
 
 interface OnboardingFormProps {
-  form: UseFormReturn<any>;
+  form: UseFormReturn<OnboardingFormValues>;
   isSubmitting: boolean;
-  onSubmit: (values: any) => void;
+  onSubmit: (values: OnboardingFormValues) => void;
 }
 
 export function OnboardingForm({ form, isSubmitting, onSubmit }: OnboardingFormProps) {
+  const isGeneral = form.watch('storeType') === 'general';
+
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -32,9 +35,12 @@ export function OnboardingForm({ form, isSubmitting, onSubmit }: OnboardingFormP
             name="companyName"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Pharmacy Name</FormLabel>
+                <FormLabel>{isGeneral ? 'Business Name' : 'Pharmacy Name'}</FormLabel>
                 <FormControl>
-                  <Input placeholder="e.g., MediCare Pharmacy" {...field} />
+                  <Input
+                    placeholder={isGeneral ? 'e.g., My Store' : 'e.g., MediCare Pharmacy'}
+                    {...field}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -49,7 +55,12 @@ export function OnboardingForm({ form, isSubmitting, onSubmit }: OnboardingFormP
             <FormItem>
               <FormLabel>Sub-title / Tagline (Optional)</FormLabel>
               <FormControl>
-                <Input placeholder="e.g., Your neighborhood pharmacy" {...field} />
+                <Input
+                  placeholder={
+                    isGeneral ? 'e.g., Your neighborhood store' : 'e.g., Your neighborhood pharmacy'
+                  }
+                  {...field}
+                />
               </FormControl>
               <FormDescription>A short, descriptive tagline for your store.</FormDescription>
               <FormMessage />

@@ -11,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useStoreType } from '@/hooks/use-store-type';
 
 interface ExpiryFiltersHeaderProps {
   searchQuery: string;
@@ -37,12 +38,17 @@ export function ExpiryFiltersHeader({
   setSortBy,
   setVisibleCount,
 }: ExpiryFiltersHeaderProps) {
+  const { isPharmacy } = useStoreType();
   return (
     <div className="flex flex-col md:flex-row gap-3 mb-6">
       <div className="relative flex-1">
         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="Search items by name, group, manufacturer..."
+          placeholder={
+            isPharmacy
+              ? 'Search items by name, group, manufacturer...'
+              : 'Search items by name, manufacturer...'
+          }
           className="pl-8"
           value={searchQuery}
           onChange={(e) => {
@@ -112,7 +118,7 @@ export function ExpiryFiltersHeader({
             <SelectItem value="expiry-asc">Expiry: Soonest First</SelectItem>
             <SelectItem value="expiry-desc">Expiry: Latest First</SelectItem>
             <SelectItem value="title-asc">Title: A to Z</SelectItem>
-            <SelectItem value="group-asc">Medicine Group: A-Z</SelectItem>
+            {isPharmacy && <SelectItem value="group-asc">Medicine Group: A-Z</SelectItem>}
             <SelectItem value="company-asc">Company Name: A-Z</SelectItem>
             <SelectItem value="stock-asc">Stock: Low to High</SelectItem>
           </SelectContent>

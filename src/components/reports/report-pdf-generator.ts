@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import type { ReportAnalysis, DailyReportAnalysis } from '@/lib/report-generator';
+import { fallbackStoreName } from '@/lib/store-copy';
 
 interface GenerateReportPdfProps {
   reportData: ReportAnalysis | DailyReportAnalysis;
@@ -39,7 +40,7 @@ export function generateReportPdf({
   // Left side header
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
-  doc.text(authUser.companyName || 'Pharmacy', 14, 20);
+  doc.text(fallbackStoreName(authUser), 14, 20);
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   doc.text(authUser.address || '', 14, 26);

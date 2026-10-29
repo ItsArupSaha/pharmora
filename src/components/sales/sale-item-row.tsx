@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { useStoreType } from '@/hooks/use-store-type';
 import type { Item } from '@/lib/types';
 
 interface SaleItemRowProps {
@@ -27,6 +28,7 @@ export function SaleItemRow({
   disabledRemove,
 }: SaleItemRowProps) {
   const { control, setValue } = useFormContext();
+  const { isPharmacy } = useStoreType();
   const watchItemId = watchItems[index]?.itemId;
   const selectedItem = items.find(i => i.id === watchItemId);
 
@@ -59,7 +61,7 @@ export function SaleItemRow({
 
                     const details = [
                       item.company,
-                      item.medicineGroup,
+                      isPharmacy ? item.medicineGroup : null,
                       `Stock: ${item.stock}`,
                       isExpired ? 'EXPIRED' : isExpiringSoon ? 'EXPIRING SOON' : null
                     ].filter(Boolean).join(' - ');

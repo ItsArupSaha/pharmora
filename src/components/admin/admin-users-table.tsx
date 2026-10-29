@@ -20,12 +20,13 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import type { AdminUserRecord } from '@/lib/db/user-settings';
-import type { AccountStatus, AppMode } from '@/lib/types';
+import type { AccountStatus, AppMode, StoreType } from '@/lib/types';
 
 interface AdminUsersTableProps {
   users: AdminUserRecord[];
   busyUserId: string | null;
   onModeChange: (userId: string, mode: AppMode) => void;
+  onStoreTypeChange: (userId: string, storeType: StoreType) => void;
   onStatusChange: (userId: string, status: AccountStatus) => void;
 }
 
@@ -43,6 +44,7 @@ export function AdminUsersTable({
   users,
   busyUserId,
   onModeChange,
+  onStoreTypeChange,
   onStatusChange,
 }: AdminUsersTableProps) {
   return (
@@ -51,7 +53,8 @@ export function AdminUsersTable({
         <TableHeader>
           <TableRow>
             <TableHead>User</TableHead>
-            <TableHead>Pharmacy</TableHead>
+            <TableHead>Store</TableHead>
+            <TableHead>Business Type</TableHead>
             <TableHead>Mode</TableHead>
             <TableHead>Service</TableHead>
             <TableHead>Onboarded</TableHead>
@@ -69,6 +72,21 @@ export function AdminUsersTable({
                   <div className="text-xs text-muted-foreground">{user.email || '—'}</div>
                 </TableCell>
                 <TableCell>{user.companyName || '—'}</TableCell>
+                <TableCell>
+                  <Select
+                    value={user.storeType ?? 'pharmacy'}
+                    onValueChange={(value) => onStoreTypeChange(user.uid, value as StoreType)}
+                    disabled={isBusy}
+                  >
+                    <SelectTrigger className="h-8 w-[130px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pharmacy">Pharmacy</SelectItem>
+                      <SelectItem value="general">General Business</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </TableCell>
                 <TableCell>
                   <Select
                     value={user.appMode ?? 'normal'}

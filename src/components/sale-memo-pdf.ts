@@ -2,6 +2,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
 import { getSaleTransaction } from '@/lib/actions';
+import { fallbackStoreName } from '@/lib/store-copy';
 import type { AuthUser, Customer, Item, Sale } from '@/lib/types';
 
 export async function generateSaleMemoPdf({
@@ -37,7 +38,7 @@ export async function generateSaleMemoPdf({
   }
 
   const doc = new jsPDF();
-  const companyName = user.companyName || 'Pharmacy';
+  const companyName = fallbackStoreName(user);
   const address = user.address || '';
   const phone = user.phone || '';
   const getItemTitle = (itemId: string) => items.find((i) => i.id === itemId)?.title || 'Unknown Item';

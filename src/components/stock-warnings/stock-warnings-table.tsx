@@ -23,6 +23,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
+import { useStoreType } from '@/hooks/use-store-type';
 import type { Item } from '@/lib/types';
 
 interface StockWarningsTableProps {
@@ -49,6 +50,7 @@ export function StockWarningsTable({
   setSelectedCompany,
 }: StockWarningsTableProps) {
   const router = useRouter();
+  const { isPharmacy } = useStoreType();
 
   return (
     <Card className="max-w-5xl mx-auto border border-muted/60 shadow-sm">
@@ -174,9 +176,10 @@ export function StockWarningsTable({
                       <TableCell className="font-medium">
                         <div>
                           <span className="block text-sm text-foreground">{item.title}</span>
-                          {(item.medicineGroup || item.company) && (
+                          {(isPharmacy ? item.medicineGroup || item.company : item.company) && (
                             <span className="block text-[11px] text-muted-foreground">
-                              {item.company} {item.medicineGroup ? ` - ${item.medicineGroup}` : ''}
+                              {item.company}{' '}
+                              {isPharmacy && item.medicineGroup ? `- ${item.medicineGroup}` : ''}
                             </span>
                           )}
                         </div>

@@ -1,6 +1,7 @@
 
 'use client';
 
+import { fallbackStoreName } from '@/lib/store-copy';
 import type { AuthUser, Customer, Item, Sale } from '@/lib/types';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
@@ -50,7 +51,7 @@ export function DownloadSaleMemo({ sale, customer, items, user }: DownloadSaleMe
     }
 
     const doc = new jsPDF();
-    const companyName = user.companyName || 'Pharmacy';
+    const companyName = fallbackStoreName(user);
     const address = user.address || '';
     const phone = user.phone || '';
 

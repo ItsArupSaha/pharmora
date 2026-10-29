@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import { useAuth } from '@/hooks/use-auth';
+import { useStoreType } from '@/hooks/use-store-type';
 import { getItems, bulkUpdateItemLocationByCompany } from '@/lib/actions';
 import type { Item } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
@@ -11,6 +12,7 @@ import { BulkShelfUpdatePreview } from '@/components/bulk-shelf-update/bulk-shel
 
 export default function BulkShelfUpdatePage() {
   const { user } = useAuth();
+  const { isPharmacy } = useStoreType();
   const { toast } = useToast();
   const [items, setItems] = React.useState<Item[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -92,7 +94,7 @@ export default function BulkShelfUpdatePage() {
       if (result?.success) {
         toast({
           title: 'Location Updated',
-          description: `Successfully moved ${result.updatedCount} medicine(s) from ${selectedCompany} to ${newLocation.trim()}.`,
+          description: `Successfully moved ${result.updatedCount} ${isPharmacy ? 'medicine' : 'item'}(s) from ${selectedCompany} to ${newLocation.trim()}.`,
         });
         setNewLocation('');
         // Reload items list from DB
@@ -129,7 +131,8 @@ export default function BulkShelfUpdatePage() {
       <div>
         <h1 className="font-headline text-3xl font-bold">Bulk Shelf Manager</h1>
         <p className="text-sm text-muted-foreground">
-          Shift all medicines from a specific company to another shelf or storage row in one click.
+          Shift all {isPharmacy ? 'medicines' : 'items'} from a specific company to another shelf or
+          storage row in one click.
         </p>
       </div>
 

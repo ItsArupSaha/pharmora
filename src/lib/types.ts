@@ -18,6 +18,8 @@ export type FeatureKey = (typeof FEATURE_KEYS)[number];
 
 export type AppMode = 'normal' | 'stock';
 
+export type StoreType = 'pharmacy' | 'general';
+
 export type AccountStatus = 'active' | 'disabled';
 
 export type AuthUser = {
@@ -44,7 +46,7 @@ export type AuthUser = {
   // Initial capital
   initialCash?: number;
   initialBank?: number;
-  storeType?: 'general' | 'pharmacy' | 'bookstore';
+  storeType?: StoreType;
 };
 
 export type Customer = {

@@ -7,6 +7,7 @@ import { AddItemsDialog } from './items/add-items-dialog';
 import { AddCategoryDialog } from './items/add-category-dialog';
 import { ItemsTable } from './items/items-table';
 import { useItemManagement } from '@/hooks/use-item-management';
+import { useStoreType } from '@/hooks/use-store-type';
 import { ItemManagementHeader } from './items/item-management-header';
 import { ItemManagementControls } from './items/item-management-controls';
 
@@ -57,6 +58,8 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
     hasMore,
     handleLoadMore,
   } = useItemManagement(userId);
+  const { isPharmacy } = useStoreType();
+  const itemNoun = isPharmacy ? 'medicine' : 'item';
 
   return (
     <Card className="animate-in fade-in-50">
@@ -80,10 +83,10 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
             <span className="text-xl">⚠️</span>
             <div className="flex-1">
               <h4 className="font-semibold text-amber-800 dark:text-amber-400">
-                Medicine Expiry Alert
+                {isPharmacy ? 'Medicine Expiry' : 'Expiry'} Alert
               </h4>
               <p className="text-sm text-amber-700 dark:text-amber-300">
-                There are {expiringAndExpiredMedicines.length} medicine(s) expired or expiring within
+                There are {expiringAndExpiredMedicines.length} {itemNoun}(s) expired or expiring within
                 30 days.
               </p>
               <Button

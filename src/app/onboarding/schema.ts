@@ -1,6 +1,7 @@
 import * as z from 'zod';
 
 export const onboardingSchema = z.object({
+  storeType: z.enum(['pharmacy', 'general']).default('pharmacy'),
   companyName: z.string().min(2, 'Store name must be at least 2 characters.'),
   subtitle: z.string().optional(),
   address: z.string().min(5, 'Please enter a valid address.'),

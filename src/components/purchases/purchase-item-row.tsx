@@ -23,6 +23,8 @@ interface PurchaseItemRowProps {
   // "stock" (stock-taking dialog) hides category and pricing. Those values
   // remain in the form state so editing an item preserves what is stored.
   variant?: RowVariant;
+  // Generic-group input is pharmacy-only; general businesses pass false.
+  showGroup?: boolean;
 }
 
 export function PurchaseItemRow({
@@ -33,6 +35,7 @@ export function PurchaseItemRow({
   onRemove,
   disabledRemove,
   variant = 'purchase',
+  showGroup = true,
 }: PurchaseItemRowProps) {
   const { control, watch, setValue } = useFormContext();
   const watchCategoryId = watch(`items.${index}.categoryId`);
@@ -101,7 +104,7 @@ export function PurchaseItemRow({
           </div>
         )}
 
-        {showMedicineFields && <PurchaseItemMedicineFields index={index} />}
+        {showMedicineFields && <PurchaseItemMedicineFields index={index} showGroup={showGroup} />}
 
         <FormField
           control={control}

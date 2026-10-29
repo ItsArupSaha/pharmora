@@ -38,3 +38,19 @@ export const OTHER_NAV_ITEMS: NavItem[] = [
   { href: '/dues', icon: Wallet, label: 'Customer Dues', feature: 'customer-dues' },
   { href: '/bulk-shelf-update', icon: FolderSync, label: 'Shelf Update (Bulk)', feature: 'shelf-update' },
 ];
+
+/** Label for the items page/nav entry — "medicines" wording is pharmacy-only. */
+export function itemsNavLabel(isPharmacy: boolean): string {
+  return isPharmacy ? 'Medicines / Stocks' : 'Items / Stocks';
+}
+
+/** Nav entries with labels resolved for the user's business type. */
+export function getNavItems(isPharmacy: boolean): { core: NavItem[]; other: NavItem[] } {
+  if (isPharmacy) return { core: CORE_NAV_ITEMS, other: OTHER_NAV_ITEMS };
+  return {
+    core: CORE_NAV_ITEMS.map((item) =>
+      item.href === '/items' ? { ...item, label: itemsNavLabel(false) } : item
+    ),
+    other: OTHER_NAV_ITEMS,
+  };
+}

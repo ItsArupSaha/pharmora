@@ -7,14 +7,16 @@ import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/s
 import { AppSidebar } from '@/components/layout/app-sidebar';
 import { useAccountAccess } from '@/hooks/use-account-access';
 import { useAuth } from '@/hooks/use-auth';
+import { useStoreType } from '@/hooks/use-store-type';
+import { itemsNavLabel } from '@/components/layout/sidebar-navigation';
 import { getLandingPath, isRouteAllowed } from '@/lib/features';
 
 // Dynamic Page Title resolution based on current path
-function usePageTitle(pathname: string): string {
+function usePageTitle(pathname: string, isPharmacy: boolean): string {
   return React.useMemo(() => {
     const matched = [
       { href: '/sales', label: 'Sell' },
-      { href: '/items', label: 'Medicines / Stocks' },
+      { href: '/items', label: itemsNavLabel(isPharmacy) },
       { href: '/expenses', label: 'Expense' },
       { href: '/purchases', label: 'Purchase' },
       { href: '/expiry-alerts', label: 'Expiry Alerts' },
@@ -27,7 +29,7 @@ function usePageTitle(pathname: string): string {
     ].find((item) => pathname.startsWith(item.href));
 
     return matched?.label || 'Sell';
-  }, [pathname]);
+  }, [pathname, isPharmacy]);
 }
 
 function ReadOnlyBanner() {
@@ -49,7 +51,8 @@ function ReadOnlyBanner() {
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const pageTitle = usePageTitle(pathname);
+  const { isPharmacy } = useStoreType();
+  const pageTitle = usePageTitle(pathname, isPharmacy);
   const { authUser } = useAuth();
 
   // Keeps features hidden by the user's mode (or by the admin) unreachable

@@ -13,9 +13,10 @@ import {
   adminListUsers,
   adminSetAccountStatus,
   adminSetUserAppMode,
+  adminSetUserStoreType,
   type AdminUserRecord,
 } from '@/lib/db/user-settings';
-import type { AccountStatus, AppMode } from '@/lib/types';
+import type { AccountStatus, AppMode, StoreType } from '@/lib/types';
 
 export default function AdminPage() {
   const { user, authUser, signOut } = useAuth();
@@ -77,6 +78,15 @@ export default function AdminPage() {
       userId,
       () => adminSetUserAppMode(userId, mode),
       mode === 'stock' ? 'User switched to Stock Only mode.' : 'User switched to Normal mode.'
+    );
+
+  const handleStoreTypeChange = (userId: string, storeType: StoreType) =>
+    updateUser(
+      userId,
+      () => adminSetUserStoreType(userId, storeType),
+      storeType === 'general'
+        ? 'User switched to General Business.'
+        : 'User switched to Pharmacy.'
     );
 
   const handleStatusChange = (userId: string, status: AccountStatus) =>
@@ -155,6 +165,7 @@ export default function AdminPage() {
                 users={users}
                 busyUserId={busyUserId}
                 onModeChange={(userId, mode) => void handleModeChange(userId, mode)}
+                onStoreTypeChange={(userId, storeType) => void handleStoreTypeChange(userId, storeType)}
                 onStatusChange={(userId, status) => void handleStatusChange(userId, status)}
               />
             )}

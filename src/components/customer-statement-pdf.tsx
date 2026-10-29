@@ -2,6 +2,7 @@
 'use client';
 
 import { useAuth } from '@/hooks/use-auth';
+import { fallbackStoreName } from '@/lib/store-copy';
 import type { Customer, Item, Sale } from '@/lib/types';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
@@ -23,7 +24,7 @@ export default function CustomerStatementPDF({ customer, sales, items }: Custome
     if (!authUser) return;
     const doc = new jsPDF();
     
-    const companyName = authUser.companyName || 'Pharmacy';
+    const companyName = fallbackStoreName(authUser);
     const companyAddress = authUser.address || '';
     const companyPhone = authUser.phone || '';
     

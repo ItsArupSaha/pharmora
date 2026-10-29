@@ -2,6 +2,7 @@ import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import type { DateRange } from 'react-day-picker';
+import { fallbackStoreName } from '@/lib/store-copy';
 import type { Customer, Item } from '@/lib/types';
 import { getFilteredSales, resolveExportBreakdownForSales } from './sales-export-utils';
 
@@ -22,7 +23,7 @@ export async function downloadSalesPdf(userId: string, dateRange: DateRange | un
   // Left side header
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
-  doc.text(authUser.companyName || 'Pharmacy', 14, 20);
+  doc.text(fallbackStoreName(authUser), 14, 20);
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   doc.text(authUser.address || '', 14, 26);
@@ -113,7 +114,7 @@ export async function downloadSalesItemsPdf(userId: string, dateRange: DateRange
 
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
-  doc.text(authUser.companyName || 'Pharmacy', 14, 20);
+  doc.text(fallbackStoreName(authUser), 14, 20);
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   doc.text(authUser.address || '', 14, 26);

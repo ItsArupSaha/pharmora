@@ -17,6 +17,7 @@ import type { Category, Item } from '@/lib/types';
 import { PurchaseItemRow } from '@/components/purchases/purchase-item-row';
 import { SupplierFormFields } from '@/components/purchases/supplier-form-fields';
 import { useAddItems } from '@/hooks/use-add-items';
+import { useStoreType } from '@/hooks/use-store-type';
 
 interface AddItemsDialogProps {
   userId: string;
@@ -35,6 +36,7 @@ export function AddItemsDialog({
   categories,
   onSuccess,
 }: AddItemsDialogProps) {
+  const { isPharmacy } = useStoreType();
   const {
     form,
     fields,
@@ -64,7 +66,7 @@ export function AddItemsDialog({
           <DialogDescription>
             {isEditing
               ? 'Update the details of this item.'
-              : 'Enter the medicines you already have on hand. No billing here — this only builds your stock list.'}
+              : `Enter the ${isPharmacy ? 'medicines' : 'items'} you already have on hand. No billing here — this only builds your stock list.`}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -93,6 +95,7 @@ export function AddItemsDialog({
                     onRemove={() => remove(index)}
                     disabledRemove={fields.length === 1}
                     variant="stock"
+                    showGroup={isPharmacy}
                   />
                 ))}
               </div>

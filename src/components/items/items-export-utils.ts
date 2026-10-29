@@ -2,7 +2,8 @@ import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
-import type { ClosingStock } from '@/lib/types';
+import { fallbackStoreName } from '@/lib/store-copy';
+import type { ClosingStock, StoreType } from '@/lib/types';
 
 interface AuthUserProps {
   companyName?: string;
@@ -10,6 +11,7 @@ interface AuthUserProps {
   phone?: string;
   bkashNumber?: string;
   bankInfo?: string;
+  storeType?: StoreType;
 }
 
 export function exportClosingStockPdf(
@@ -29,7 +31,7 @@ export function exportClosingStockPdf(
 
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
-  doc.text(authUser.companyName || 'Pharmacy', 14, 20);
+  doc.text(fallbackStoreName(authUser), 14, 20);
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   doc.text(authUser.address || '', 14, 26);
@@ -57,14 +59,24 @@ export function exportClosingStockPdf(
   doc.setTextColor(0);
 
   const detailHeader = 'Group (Generic)';
+  const showGroup = authUser.storeType !== 'general';
 
   autoTable(doc, {
     startY: 60,
-    head: [['Title', 'Category', detailHeader, 'Company', 'Expiry Date', 'Prod. Price (TK)', 'MRP (TK)', 'Stock']],
+    head: [[
+      'Title',
+      'Category',
+      ...(showGroup ? [detailHeader] : []),
+      'Company',
+      'Expiry Date',
+      'Prod. Price (TK)',
+      'MRP (TK)',
+      'Stock'
+    ]],
     body: sortedData.map(item => [
       item.title,
       item.categoryName,
-      item.medicineGroup || '-',
+      ...(showGroup ? [item.medicineGroup || '-'] : []),
       item.company || '-',
       item.expiryDate || '-',
       item.productionPrice.toFixed(2),
@@ -82,7 +94,8 @@ export function exportClosingStockPdf(
 export function exportClosingStockXlsx(
   closingStockData: ClosingStock[],
   closingStockDate: Date,
-  companyName?: string
+  companyName?: string,
+  storeType?: StoreType
 ) {
   if (!closingStockData.length || !closingStockDate) return;
 
@@ -90,18 +103,22 @@ export function exportClosingStockXlsx(
     (a.title || '').localeCompare(b.title || '')
   );
 
-  const detailHeader = 'Group (Generic)';
-
-  const dataToExport = sortedData.map(item => ({
-    Title: item.title,
-    Category: item.categoryName,
-    [detailHeader]: item.medicineGroup || '-',
-    Company: item.company || '-',
-    'Expiry Date': item.expiryDate || '-',
-    'Production Price': item.productionPrice,
-    'MRP': item.sellingPrice,
-    Stock: item.closingStock,
-  }));
+  const showGroup = storeType !== 'general';
+  const dataToExport = sortedData.map(item => {
+    const row: Record<string, string | number> = {
+      Title: item.title,
+      Category: item.categoryName,
+    };
+    if (showGroup) row['Group (Generic)'] = item.medicineGroup || '-';
+    return {
+      ...row,
+      Company: item.company || '-',
+      'Expiry Date': item.expiryDate || '-',
+      'Production Price': item.productionPrice,
+      'MRP': item.sellingPrice,
+      Stock: item.closingStock,
+    };
+  });
 
   const worksheet = XLSX.utils.json_to_sheet(dataToExport);
 

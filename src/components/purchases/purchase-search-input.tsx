@@ -4,6 +4,7 @@ import * as React from 'react';
 import { Loader2, Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useStoreType } from '@/hooks/use-store-type';
 
 interface PurchaseSearchInputProps {
   searchTerm: string;
@@ -22,12 +23,17 @@ export function PurchaseSearchInput({
   resultCount,
   onClear,
 }: PurchaseSearchInputProps) {
+  const { isPharmacy } = useStoreType();
   return (
     <div className="space-y-2">
       <div className="relative">
         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="Search by medicine name or memo no (e.g. Napa, PUR-0001)..."
+          placeholder={
+            isPharmacy
+              ? 'Search by medicine name or memo no (e.g. Napa, PUR-0001)...'
+              : 'Search by item name or memo no (e.g. PUR-0001)...'
+          }
           className="pl-8 pr-10"
           value={searchTerm}
           onChange={(e) => onSearchTermChange(e.target.value)}

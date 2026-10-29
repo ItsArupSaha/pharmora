@@ -7,26 +7,31 @@ import { Input } from '@/components/ui/input';
 
 interface PurchaseItemMedicineFieldsProps {
   index: number;
+  // Generic-group input is pharmacy-only; hidden (not removed) for general
+  // businesses so the value round-trips in form state untouched.
+  showGroup?: boolean;
 }
 
-export function PurchaseItemMedicineFields({ index }: PurchaseItemMedicineFieldsProps) {
+export function PurchaseItemMedicineFields({ index, showGroup = true }: PurchaseItemMedicineFieldsProps) {
   const { control } = useFormContext();
 
   return (
     <>
-      <FormField
-        control={control}
-        name={`items.${index}.medicineGroup`}
-        render={({ field }) => (
-          <FormItem className="md:col-span-3">
-            <FormLabel className="text-xs">Group (Generic)</FormLabel>
-            <FormControl>
-              <Input placeholder="e.g., Paracetamol" {...field} />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
+      {showGroup && (
+        <FormField
+          control={control}
+          name={`items.${index}.medicineGroup`}
+          render={({ field }) => (
+            <FormItem className="md:col-span-3">
+              <FormLabel className="text-xs">Group (Generic)</FormLabel>
+              <FormControl>
+                <Input placeholder="e.g., Paracetamol" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      )}
       <FormField
         control={control}
         name={`items.${index}.expiryDate`}

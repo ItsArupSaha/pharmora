@@ -25,6 +25,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import { useStoreType } from '@/hooks/use-store-type';
 import { SecurityDepositRefundFields } from './security-deposit-refund-fields';
 
 interface SecurityDepositFormFieldsProps {
@@ -37,6 +38,7 @@ export function SecurityDepositFormFields({
   editingSecurity,
 }: SecurityDepositFormFieldsProps) {
   const watchStatus = form.watch('status');
+  const { isPharmacy } = useStoreType();
 
   return (
     <div className="space-y-4 py-2">
@@ -125,7 +127,11 @@ export function SecurityDepositFormFields({
             <FormLabel>Notes / Details</FormLabel>
             <FormControl>
               <Textarea
-                placeholder="e.g., Security deposit for pharmacy room rent, etc."
+                placeholder={
+                  isPharmacy
+                    ? 'e.g., Security deposit for pharmacy room rent, etc.'
+                    : 'e.g., Security deposit for room rent, etc.'
+                }
                 className="resize-none"
                 {...field}
               />

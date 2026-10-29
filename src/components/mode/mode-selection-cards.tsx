@@ -12,6 +12,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import type { AppMode } from '@/lib/types';
+import { useStoreType } from '@/hooks/use-store-type';
 
 interface ModeOption {
   mode: AppMode;
@@ -51,6 +52,27 @@ const MODE_OPTIONS: ModeOption[] = [
   },
 ];
 
+const GENERAL_MODE_OVERRIDES: Record<AppMode, { description: string; bullets: string[] }> = {
+  normal: {
+    description: 'Complete business management with sales, stock and money tracking.',
+    bullets: [
+      'Sell, purchases, expenses',
+      'Customer dues & supplier payables',
+      'Reports and business overview',
+      'Full stock and expiry management',
+    ],
+  },
+  stock: {
+    description: 'Track items, batches, expiry and shelf — without money features.',
+    bullets: [
+      'Items / stocks & purchases',
+      'Expiry alerts & stock warnings',
+      'Shelf update (bulk)',
+      'No selling, expenses, reports or dues',
+    ],
+  },
+};
+
 interface ModeSelectionCardsProps {
   currentMode?: AppMode;
   isPending: boolean;
@@ -58,53 +80,60 @@ interface ModeSelectionCardsProps {
 }
 
 export function ModeSelectionCards({ currentMode, isPending, onSelect }: ModeSelectionCardsProps) {
+  const { isPharmacy } = useStoreType();
+
   return (
     <div className="grid gap-4 md:grid-cols-2">
-      {MODE_OPTIONS.map((option) => (
-        <Card
-          key={option.mode}
-          className={
-            currentMode === option.mode ? 'border-primary ring-1 ring-primary' : undefined
-          }
-        >
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10">
-                <option.icon className="h-5 w-5 text-primary" />
+      {MODE_OPTIONS.map((option) => {
+        const override = isPharmacy ? null : GENERAL_MODE_OVERRIDES[option.mode];
+        return (
+          <Card
+            key={option.mode}
+            className={
+              currentMode === option.mode ? 'border-primary ring-1 ring-primary' : undefined
+            }
+          >
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10">
+                  <option.icon className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <CardTitle className="font-headline text-lg">{option.title}</CardTitle>
+                  {currentMode === option.mode && (
+                    <span className="text-xs font-semibold text-primary">Current mode</span>
+                  )}
+                </div>
               </div>
-              <div>
-                <CardTitle className="font-headline text-lg">{option.title}</CardTitle>
-                {currentMode === option.mode && (
-                  <span className="text-xs font-semibold text-primary">Current mode</span>
-                )}
-              </div>
-            </div>
-            <CardDescription className="pt-2">{option.description}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-1.5 text-sm text-muted-foreground">
-              {option.bullets.map((bullet) => (
-                <li key={bullet} className="flex items-start gap-2">
-                  <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/60" />
-                  {bullet}
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-          <CardFooter>
-            <Button
-              className="w-full"
-              onClick={() => onSelect(option.mode)}
-              disabled={isPending || currentMode === option.mode}
-            >
-              {isPending && currentMode !== option.mode ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : null}
-              {currentMode === option.mode ? 'Active' : option.cta}
-            </Button>
-          </CardFooter>
-        </Card>
-      ))}
+              <CardDescription className="pt-2">
+                {override?.description ?? option.description}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ul className="space-y-1.5 text-sm text-muted-foreground">
+                {(override?.bullets ?? option.bullets).map((bullet) => (
+                  <li key={bullet} className="flex items-start gap-2">
+                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/60" />
+                    {bullet}
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+            <CardFooter>
+              <Button
+                className="w-full"
+                onClick={() => onSelect(option.mode)}
+                disabled={isPending || currentMode === option.mode}
+              >
+                {isPending && currentMode !== option.mode ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : null}
+                {currentMode === option.mode ? 'Active' : option.cta}
+              </Button>
+            </CardFooter>
+          </Card>
+        );
+      })}
     </div>
   );
 }

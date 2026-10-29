@@ -4,10 +4,11 @@ import * as React from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { calculateClosingStock } from '@/lib/actions';
 import { exportClosingStockPdf, exportClosingStockXlsx } from '@/components/items/items-export-utils';
+import type { AuthUser } from '@/lib/types';
 
 interface UseClosingStockProps {
   userId: string;
-  authUser: any;
+  authUser: AuthUser | null;
 }
 
 export function useClosingStock({ userId, authUser }: UseClosingStockProps) {
@@ -68,7 +69,7 @@ export function useClosingStock({ userId, authUser }: UseClosingStockProps) {
         toast({ variant: 'destructive', title: 'No Data', description: 'No items found for this company.' });
         return;
       }
-      exportClosingStockXlsx(result.data, closingStockDate, result.companyName);
+      exportClosingStockXlsx(result.data, closingStockDate, result.companyName, authUser?.storeType);
       toast({ title: 'Downloaded', description: 'Stock Excel downloaded successfully.' });
       setIsStockDialogOpen(false);
     } catch (error) {

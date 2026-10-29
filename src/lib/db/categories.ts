@@ -10,7 +10,7 @@ import {
 } from 'firebase/firestore';
 
 import { db } from '../firebase';
-import type { Category } from '../types';
+import type { Category, StoreType } from '../types';
 import { cachedCollection } from './collection-cache';
 import { invalidateAppData, readCatalogVersion } from './data-version';
 
@@ -59,8 +59,8 @@ export async function deleteCategory(userId: string, id: string) {
   await invalidateAppData(userId, { scope: 'catalog' });
 }
 
-// Initialize default pharmacy categories for new users
-export async function initializeDefaultCategories(userId: string) {
+// Seed starter categories for new users, matching their business type.
+export async function initializeDefaultCategories(userId: string, storeType: StoreType = 'pharmacy') {
   if (!db || !userId) return;
 
   const categoriesCollection = collection(db, 'users', userId, 'categories');
@@ -68,6 +68,15 @@ export async function initializeDefaultCategories(userId: string) {
 
   // Only add default categories if none exist
   if (snapshot.empty) {
+    if (storeType === 'general') {
+      await addDoc(categoriesCollection, {
+        name: 'General Products',
+        description: 'Products your store sells',
+        createdAt: new Date()
+      });
+      return;
+    }
+
     await addDoc(categoriesCollection, {
       name: 'Medicines',
       description: 'Prescription and OTC drugs',

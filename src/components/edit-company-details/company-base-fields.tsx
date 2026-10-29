@@ -12,12 +12,14 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { useStoreType } from '@/hooks/use-store-type';
 
 interface CompanyBaseFieldsProps {
   form: UseFormReturn<any>;
 }
 
 export function CompanyBaseFields({ form }: CompanyBaseFieldsProps) {
+  const { isPharmacy } = useStoreType();
   return (
     <>
       <FormField
@@ -25,9 +27,12 @@ export function CompanyBaseFields({ form }: CompanyBaseFieldsProps) {
         name="companyName"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Pharmacy Name</FormLabel>
+            <FormLabel>{isPharmacy ? 'Pharmacy Name' : 'Business Name'}</FormLabel>
             <FormControl>
-              <Input placeholder="e.g., MediCare Pharmacy" {...field} />
+              <Input
+                placeholder={isPharmacy ? 'e.g., MediCare Pharmacy' : 'e.g., My Store'}
+                {...field}
+              />
             </FormControl>
             <FormMessage />
           </FormItem>
@@ -40,7 +45,12 @@ export function CompanyBaseFields({ form }: CompanyBaseFieldsProps) {
           <FormItem>
             <FormLabel>Sub-title / Tagline (Optional)</FormLabel>
             <FormControl>
-              <Input placeholder="e.g., Your neighborhood pharmacy" {...field} />
+              <Input
+                placeholder={
+                  isPharmacy ? 'e.g., Your neighborhood pharmacy' : 'e.g., Your neighborhood store'
+                }
+                {...field}
+              />
             </FormControl>
             <FormDescription>A short, descriptive tagline for your store.</FormDescription>
             <FormMessage />

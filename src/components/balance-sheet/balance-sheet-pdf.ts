@@ -1,6 +1,8 @@
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { fallbackStoreName } from '@/lib/store-copy';
+import type { StoreType } from '@/lib/types';
 
 interface BalanceSheetPdfData {
     cash: number;
@@ -21,6 +23,7 @@ interface BalanceSheetPdfUser {
     phone?: string | null;
     bkashNumber?: string | null;
     bankInfo?: string | null;
+    storeType?: StoreType;
 }
 
 const formatCurrencyForPdf = (amount: number) =>
@@ -41,7 +44,7 @@ export function exportBalanceSheetPdf(
     // Left side header
     doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
-    doc.text(authUser.companyName || 'Pharmacy', 14, 20);
+    doc.text(fallbackStoreName(authUser), 14, 20);
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
     doc.text(authUser.address || '', 14, 26);

@@ -20,6 +20,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import type { ClosingStock } from '@/lib/types';
+import { useStoreType } from '@/hooks/use-store-type';
 
 interface ClosingStockResultsProps {
   closingStockData: ClosingStock[];
@@ -44,6 +45,7 @@ export function ClosingStockResults({
 }: ClosingStockResultsProps) {
   const [internalCompany, setInternalCompany] = React.useState('all');
   const activeCompany = controlledCompany !== undefined ? controlledCompany : internalCompany;
+  const { isPharmacy } = useStoreType();
 
   const handleCompanyChange = (val: string) => {
     setInternalCompany(val);
@@ -71,6 +73,8 @@ export function ClosingStockResults({
   if (closingStockData.length === 0) return null;
 
   const detailHeader = 'Group (Generic)';
+  // Generic group is a pharmacy-only concept; general businesses skip the column.
+  const columnCount = isPharmacy ? 8 : 7;
 
   return (
     <div className="mb-6">
@@ -111,7 +115,7 @@ export function ClosingStockResults({
             <TableRow>
               <TableHead>Title</TableHead>
               <TableHead>Category</TableHead>
-              <TableHead>{detailHeader}</TableHead>
+              {isPharmacy && <TableHead>{detailHeader}</TableHead>}
               <TableHead>Company</TableHead>
               <TableHead>Expiry Date</TableHead>
               <TableHead className="text-right">Prod. Price</TableHead>
@@ -122,7 +126,7 @@ export function ClosingStockResults({
           <TableBody>
             {displayedItems.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-6 text-muted-foreground">
+                <TableCell colSpan={columnCount} className="text-center py-6 text-muted-foreground">
                   No stock records found for this company.
                 </TableCell>
               </TableRow>
@@ -131,7 +135,7 @@ export function ClosingStockResults({
                 <TableRow key={item.id}>
                   <TableCell className="font-medium">{item.title}</TableCell>
                   <TableCell>{item.categoryName}</TableCell>
-                  <TableCell>{item.medicineGroup || '-'}</TableCell>
+                  {isPharmacy && <TableCell>{item.medicineGroup || '-'}</TableCell>}
                   <TableCell>{item.company || '-'}</TableCell>
                   <TableCell>
                     {item.expiryDate ? format(new Date(item.expiryDate), 'yyyy-MM-dd') : '-'}

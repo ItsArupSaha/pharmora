@@ -10,6 +10,7 @@ import { AddCategoryDialog } from './items/add-category-dialog';
 import { ItemsTable } from './items/items-table';
 import { ExpiryFiltersHeader } from './expiry/expiry-filters-header';
 import { useExpiryAlerts } from '@/hooks/use-expiry-alerts';
+import { useStoreType } from '@/hooks/use-store-type';
 
 interface ExpiryAlertsProps {
   userId: string;
@@ -45,6 +46,7 @@ export default function ExpiryAlerts({ userId }: ExpiryAlertsProps) {
     handleXlsx,
     filteredAndSortedItems,
   } = useExpiryAlerts({ userId });
+  const { isPharmacy } = useStoreType();
 
   return (
     <Card className="animate-in fade-in-50">
@@ -53,7 +55,8 @@ export default function ExpiryAlerts({ userId }: ExpiryAlertsProps) {
           <div>
             <CardTitle className="font-headline text-2xl">Expiry Alerts</CardTitle>
             <CardDescription>
-              View, manage, and download lists of expired medicines or items expiring within 90 days.
+              View, manage, and download lists of expired {isPharmacy ? 'medicines or items' : 'items'}{' '}
+              expiring within 90 days.
             </CardDescription>
           </div>
           <div className="flex flex-col sm:flex-row flex-wrap gap-2 w-full sm:w-auto sm:justify-end">

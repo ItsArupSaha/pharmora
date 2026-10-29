@@ -19,17 +19,19 @@ import {
   SidebarSeparator,
 } from '@/components/ui/sidebar';
 import { useAuth } from '@/hooks/use-auth';
+import { useStoreType } from '@/hooks/use-store-type';
 import { getAlertCounts } from '@/lib/db/item-alerts';
 import { APP_NAME } from '@/lib/app-info';
 import { getVisibleFeatures } from '@/lib/features';
 import { AdminPanelLink } from './admin-panel-link';
 import { ModeSwitcher } from './mode-switcher';
 import { ProfileButton } from './profile-button';
-import { CORE_NAV_ITEMS, OTHER_NAV_ITEMS, type NavItem } from './sidebar-navigation';
+import { getNavItems, type NavItem } from './sidebar-navigation';
 
 export function AppSidebar() {
   const pathname = usePathname();
   const { authUser, user } = useAuth();
+  const { isPharmacy } = useStoreType();
   const [alertCount, setAlertCount] = React.useState(0);
   const [stockWarningCount, setStockWarningCount] = React.useState(0);
 
@@ -43,8 +45,15 @@ export function AppSidebar() {
     [visibleFeatures]
   );
 
-  const coreItems = React.useMemo(() => filterVisible(CORE_NAV_ITEMS), [filterVisible]);
-  const otherItems = React.useMemo(() => filterVisible(OTHER_NAV_ITEMS), [filterVisible]);
+  const navItems = React.useMemo(() => getNavItems(isPharmacy), [isPharmacy]);
+  const coreItems = React.useMemo(
+    () => filterVisible(navItems.core),
+    [filterVisible, navItems]
+  );
+  const otherItems = React.useMemo(
+    () => filterVisible(navItems.other),
+    [filterVisible, navItems]
+  );
 
   const refreshCounts = React.useCallback(() => {
     if (!user) return;

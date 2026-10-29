@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { useStoreType } from '@/hooks/use-store-type';
 import type { Item } from '@/lib/types';
 import { filterAndSortItems } from './searchable-item-utils';
 
@@ -26,6 +27,7 @@ export function SearchableItemSelect({
   const [isEditing, setIsEditing] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState('');
   const [highlightedIndex, setHighlightedIndex] = React.useState(0);
+  const { isPharmacy } = useStoreType();
 
   const containerRef = React.useRef<HTMLDivElement>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
@@ -192,7 +194,8 @@ export function SearchableItemSelect({
             >
               <div className="font-semibold">{item.title}</div>
               <div className="text-xs text-muted-foreground">
-                {item.company} {item.medicineGroup ? ` - ${item.medicineGroup}` : ''}{' '}
+                {item.company}{' '}
+                {isPharmacy && item.medicineGroup ? `- ${item.medicineGroup}` : ''}{' '}
                 {item.expiryDate ? ` | Exp: ${item.expiryDate}` : ''} | Stock: {item.stock}
               </div>
             </button>

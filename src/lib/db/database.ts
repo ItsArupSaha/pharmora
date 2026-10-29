@@ -2,6 +2,7 @@
 import { addDoc, collection, doc, getDoc, getDocs, Timestamp, updateDoc, writeBatch } from 'firebase/firestore';
 import { db } from '../firebase';
 import type { AuthUser, InitialCapital } from '../types';
+import type { OnboardingFormValues } from '@/app/onboarding/schema';
 import { initializeDefaultCategories } from './categories';
 
 // --- User Initialization on First Login ---
@@ -41,13 +42,14 @@ export async function initializeNewUser(userId: string) {
   console.log(`Initialized database for new user: ${userId}`);
 }
 
-export async function completeOnboarding(userId: string, data: any) {
+export async function completeOnboarding(userId: string, data: OnboardingFormValues) {
   if (!db || !userId) return;
 
   const userDocRef = doc(db, 'users', userId);
 
   // 1. Update user document with company info and mark onboarding as complete
   const userData: Partial<AuthUser> = {
+    storeType: data.storeType,
     companyName: data.companyName,
     subtitle: data.subtitle,
     address: data.address,
@@ -59,8 +61,8 @@ export async function completeOnboarding(userId: string, data: any) {
 
   await updateDoc(userDocRef, userData);
 
-  // Initialize default pharmacy categories
-  await initializeDefaultCategories(userId);
+  // Seed starter categories matching the chosen business type
+  await initializeDefaultCategories(userId, data.storeType);
 
   // 2. Record initial capital into a dedicated 'capital' collection
   const capitalCollection = collection(userDocRef, 'capital');

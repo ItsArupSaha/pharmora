@@ -4,12 +4,14 @@ import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
-import type { Item } from '@/lib/types';
+import { fallbackStoreName } from '@/lib/store-copy';
+import type { Item, StoreType } from '@/lib/types';
 
 interface ExportUser {
   companyName?: string | null;
   address?: string | null;
   phone?: string | null;
+  storeType?: StoreType;
 }
 
 export function handleDownloadPdf(filteredAndSortedItems: Item[], authUser: ExportUser | null, reportTitle: string) {
@@ -17,10 +19,11 @@ export function handleDownloadPdf(filteredAndSortedItems: Item[], authUser: Expo
 
   const doc = new jsPDF();
   const dateString = format(new Date(), 'PPP');
+  const isGeneral = authUser.storeType === 'general';
 
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
-  doc.text(authUser.companyName || 'Pharmacy', 14, 20);
+  doc.text(fallbackStoreName(authUser), 14, 20);
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   doc.text(authUser.address || '', 14, 26);
@@ -28,7 +31,7 @@ export function handleDownloadPdf(filteredAndSortedItems: Item[], authUser: Expo
 
   doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
-  doc.text(`Medicine Expiry Report (${reportTitle})`, 105, 45, { align: 'center' });
+  doc.text(`${isGeneral ? 'Expiry' : 'Medicine Expiry'} Report (${reportTitle})`, 105, 45, { align: 'center' });
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(100);
@@ -37,10 +40,16 @@ export function handleDownloadPdf(filteredAndSortedItems: Item[], authUser: Expo
 
   autoTable(doc, {
     startY: 58,
-    head: [['Title', 'Group (Generic)', 'Company', 'Expiry Date', 'Stock']],
+    head: [[
+      'Title',
+      ...(isGeneral ? [] : ['Group (Generic)']),
+      'Company',
+      'Expiry Date',
+      'Stock'
+    ]],
     body: filteredAndSortedItems.map(item => [
       item.title,
-      item.medicineGroup || '-',
+      ...(isGeneral ? [] : [item.medicineGroup || '-']),
       item.company || '-',
       item.expiryDate || '-',
       item.stock,
@@ -50,16 +59,24 @@ export function handleDownloadPdf(filteredAndSortedItems: Item[], authUser: Expo
   doc.save(`expiry-report-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
 }
 
-export function handleDownloadXlsx(filteredAndSortedItems: Item[], reportTitle: string) {
+export function handleDownloadXlsx(
+  filteredAndSortedItems: Item[],
+  reportTitle: string,
+  storeType?: StoreType
+) {
   if (!filteredAndSortedItems.length) return;
 
-  const dataToExport = filteredAndSortedItems.map(item => ({
-    Title: item.title,
-    'Group (Generic)': item.medicineGroup || '-',
-    Company: item.company || '-',
-    'Expiry Date': item.expiryDate || '-',
-    Stock: item.stock,
-  }));
+  const showGroup = storeType !== 'general';
+  const dataToExport = filteredAndSortedItems.map(item => {
+    const row: Record<string, string | number> = { Title: item.title };
+    if (showGroup) row['Group (Generic)'] = item.medicineGroup || '-';
+    return {
+      ...row,
+      Company: item.company || '-',
+      'Expiry Date': item.expiryDate || '-',
+      Stock: item.stock,
+    };
+  });
 
   const worksheet = XLSX.utils.json_to_sheet(dataToExport);
 

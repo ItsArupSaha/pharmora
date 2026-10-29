@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { useAccountAccess } from '@/hooks/use-account-access';
+import { useStoreType } from '@/hooks/use-store-type';
 import type { Purchase } from '@/lib/types';
 
 interface PurchasesTableProps {
@@ -17,6 +18,7 @@ interface PurchasesTableProps {
 }
 
 function PurchaseItemsBreakdown({ purchase }: { purchase: Purchase }) {
+  const { isPharmacy } = useStoreType();
   const net = purchase.totalAmount + (purchase.vatAmount || 0) - (purchase.discountAmount || 0);
 
   return (
@@ -39,7 +41,7 @@ function PurchaseItemsBreakdown({ purchase }: { purchase: Purchase }) {
               <tr key={`${item.itemName}-${idx}`} className="border-b last:border-b-0">
                 <td className="px-3 py-2 font-medium">
                   {item.itemName}
-                  {item.medicineGroup && (
+                  {isPharmacy && item.medicineGroup && (
                     <span className="block text-xs text-muted-foreground">{item.medicineGroup}</span>
                   )}
                 </td>

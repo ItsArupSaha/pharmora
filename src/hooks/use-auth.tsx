@@ -32,6 +32,7 @@ function normalizeAuthUser(data: Partial<AuthUser>): AuthUser {
     ...data,
     appMode: data.appMode ?? 'normal',
     accountStatus: data.accountStatus ?? 'active',
+    storeType: data.storeType ?? 'pharmacy',
   } as AuthUser;
 }
 

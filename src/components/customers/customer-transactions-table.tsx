@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { useStoreType } from '@/hooks/use-store-type';
 import type { Item } from '@/lib/types';
 
 interface CustomerTransactionsTableProps {
@@ -20,6 +21,7 @@ export function CustomerTransactionsTable({
   customerName,
   items,
 }: CustomerTransactionsTableProps) {
+  const { isPharmacy } = useStoreType();
   return (
     <Card>
       <CardHeader>
@@ -27,7 +29,7 @@ export function CustomerTransactionsTable({
           <div>
             <CardTitle className="font-headline text-2xl">Transaction History</CardTitle>
             <CardDescription>
-              All transactions between {customerName} and your pharmacy
+              All transactions between {customerName} and your {isPharmacy ? 'pharmacy' : 'store'}
             </CardDescription>
           </div>
           <Button variant="outline" size="sm">

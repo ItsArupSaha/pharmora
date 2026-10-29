@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAccountAccess } from '@/hooks/use-account-access';
 import { useAuth } from '@/hooks/use-auth';
+import { useStoreType } from '@/hooks/use-store-type';
 import { getDashboardStats } from '@/lib/db/dashboard';
 import { countExpiringItems } from '@/lib/db/item-alerts';
 import { ArrowRightLeft, DollarSign, Settings, ShoppingCart } from 'lucide-react';
@@ -19,6 +20,7 @@ type DashboardStats = Awaited<ReturnType<typeof getDashboardStats>>;
 export default function DashboardPage() {
   const { user, authUser } = useAuth();
   const { canWrite } = useAccountAccess();
+  const { isPharmacy } = useStoreType();
   const [stats, setStats] = React.useState<DashboardStats | null>(null);
   const [alertCount, setAlertCount] = React.useState(0);
   const [isLoading, setIsLoading] = React.useState(true);
@@ -82,8 +84,8 @@ export default function DashboardPage() {
       </div>
 
       {alertCount > 0 && (() => {
-        const alertTitle = 'Medicine Expiry Warning';
-        const alertText = `There are ${alertCount} medicine(s) expired or expiring within 30 days. Please check and return or replace them.`;
+        const alertTitle = isPharmacy ? 'Medicine Expiry Warning' : 'Expiry Warning';
+        const alertText = `There are ${alertCount} ${isPharmacy ? 'medicine' : 'item'}(s) expired or expiring within 30 days. Please check and return or replace them.`;
         return (
           <div className="p-4 border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900/50 rounded-lg flex items-start gap-3 animate-in slide-in-from-top duration-300">
             <span className="text-xl">⚠️</span>

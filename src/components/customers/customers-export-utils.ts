@@ -2,7 +2,8 @@ import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
-import type { Customer } from '@/lib/types';
+import { fallbackStoreName } from '@/lib/store-copy';
+import type { Customer, StoreType } from '@/lib/types';
 
 interface AuthUserProps {
   companyName?: string;
@@ -10,6 +11,7 @@ interface AuthUserProps {
   phone?: string;
   bkashNumber?: string;
   bankInfo?: string;
+  storeType?: StoreType;
 }
 
 export function exportCustomersToPdf(allCustomers: Customer[], authUser: AuthUserProps | null) {
@@ -21,7 +23,7 @@ export function exportCustomersToPdf(allCustomers: Customer[], authUser: AuthUse
   // Left side header
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
-  doc.text(authUser.companyName || 'Pharmacy', 14, 20);
+  doc.text(fallbackStoreName(authUser), 14, 20);
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   doc.text(authUser.address || '', 14, 26);

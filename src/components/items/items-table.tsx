@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAccountAccess } from '@/hooks/use-account-access';
 import { useAuth } from '@/hooks/use-auth';
+import { useStoreType } from '@/hooks/use-store-type';
 import {
   Table,
   TableBody,
@@ -44,10 +45,12 @@ export function ItemsTable({
 }: ItemsTableProps) {
   const { authUser } = useAuth();
   const { canWrite } = useAccountAccess();
+  const { isPharmacy } = useStoreType();
   // Stock-management mode hides category, generic-group, shelf and production
-  // cost columns; the data itself is unchanged.
+  // cost columns; the data itself is unchanged. General businesses additionally
+  // hide the generic-group column (pharmacy-only concept).
   const isStockMode = authUser?.appMode === 'stock';
-  const showGeneric = !isStockMode;
+  const showGeneric = !isStockMode && isPharmacy;
   const showProdCost = !isStockMode;
   const showCategory = !isStockMode;
   const showLocation = !isStockMode;
@@ -60,10 +63,10 @@ export function ItemsTable({
     (showLocation ? 1 : 0) +
     (showProdCost ? 1 : 0);
 
-  // Pharmacy column labels
-  const titleHeader = 'Medicine Name';
+  // Column labels adapt to the business type
+  const titleHeader = isPharmacy ? 'Medicine Name' : 'Item Name';
   const detailHeader = 'Group (Generic)';
-  const companyHeader = 'Manufacturer';
+  const companyHeader = isPharmacy ? 'Manufacturer' : 'Company';
   const locationHeader = 'Shelf / Row';
 
   return (

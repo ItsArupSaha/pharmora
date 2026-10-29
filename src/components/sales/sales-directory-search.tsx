@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { useSalesDirectorySearch } from '@/hooks/use-sales-directory-search';
+import { useStoreType } from '@/hooks/use-store-type';
 import { AlternativeMedicinesDialog } from './alternative-medicines-dialog';
 import type { Item } from '@/lib/types';
 
@@ -14,6 +15,7 @@ interface SalesDirectorySearchProps {
 }
 
 export function SalesDirectorySearch({ items }: SalesDirectorySearchProps) {
+  const { isPharmacy } = useStoreType();
   const {
     directoryQuery,
     setDirectoryQuery,
@@ -31,7 +33,9 @@ export function SalesDirectorySearch({ items }: SalesDirectorySearchProps) {
           Directory Deep Search
         </CardTitle>
         <CardDescription className="text-[10px]">
-          Search medicines by name, company, generic group, or shelf.
+          {isPharmacy
+            ? 'Search medicines by name, company, generic group, or shelf.'
+            : 'Search items by name, company, or shelf.'}
         </CardDescription>
       </CardHeader>
       <CardContent className="p-4 pt-0 space-y-3">
@@ -56,7 +60,7 @@ export function SalesDirectorySearch({ items }: SalesDirectorySearchProps) {
         <div className="h-[520px] overflow-y-auto overflow-x-hidden pr-1.5 space-y-2 w-full min-w-0">
           {filteredDirectoryItems.length === 0 ? (
             <p className="text-xs text-muted-foreground text-center py-8">
-              No matching medicines found.
+              No matching {isPharmacy ? 'medicines' : 'items'} found.
             </p>
           ) : (
             filteredDirectoryItems.map((item) => (
@@ -69,7 +73,8 @@ export function SalesDirectorySearch({ items }: SalesDirectorySearchProps) {
                 </div>
 
                 <div className="text-[10px] text-muted-foreground leading-tight truncate">
-                  {item.company} {item.medicineGroup ? ` • ${item.medicineGroup}` : ''}
+                  {item.company}{' '}
+                  {isPharmacy && item.medicineGroup ? ` • ${item.medicineGroup}` : ''}
                 </div>
 
                 <div className="text-[10px] text-muted-foreground pt-0.5 leading-normal flex flex-wrap gap-x-1.5 gap-y-0.5 min-w-0">
@@ -104,7 +109,7 @@ export function SalesDirectorySearch({ items }: SalesDirectorySearchProps) {
                   Price: ৳{Number(item.sellingPrice).toFixed(2)}
                 </div>
 
-                {item.medicineGroup && (
+                {isPharmacy && item.medicineGroup && (
                   <div className="pt-1 flex">
                     <button
                       onClick={() => setSelectedAlternativeItem(item)}

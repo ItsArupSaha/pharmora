@@ -20,6 +20,7 @@ export function useOnboarding() {
   const form = useForm<OnboardingFormValues>({
     resolver: zodResolver(onboardingSchema),
     defaultValues: {
+      storeType: 'pharmacy',
       companyName: '',
       subtitle: '',
       address: '',

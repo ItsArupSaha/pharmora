@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useAuth } from '@/hooks/use-auth';
+import { useStoreType } from '@/hooks/use-store-type';
 import type { Category } from '@/lib/types';
 
 interface ItemManagementControlsProps {
@@ -45,14 +46,20 @@ export function ItemManagementControls({
   sortBy,
   setSortBy,
 }: ItemManagementControlsProps) {
-  // Stock-management mode hides generic-group sorting along with its column.
+  // Stock-management mode hides generic-group sorting along with its column;
+  // general businesses never have generic groups either way.
   const isStockMode = useAuth().authUser?.appMode === 'stock';
+  const { isPharmacy } = useStoreType();
   return (
     <div className="flex flex-col md:flex-row gap-3 mb-6">
       <div className="relative flex-1">
         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="Search medicines by name, group, manufacturer, category..."
+          placeholder={
+            isPharmacy
+              ? 'Search medicines by name, group, manufacturer, category...'
+              : 'Search items by name, company, category...'
+          }
           className="pl-8"
           value={searchQuery}
           onChange={(e) => {
@@ -144,7 +151,9 @@ export function ItemManagementControls({
             <SelectItem value="title-desc">Title: Z to A</SelectItem>
             <SelectItem value="stock-asc">Stock: Low to High</SelectItem>
             <SelectItem value="stock-desc">Stock: High to Low</SelectItem>
-            {!isStockMode && <SelectItem value="group-asc">Medicine Group: A-Z</SelectItem>}
+            {!isStockMode && isPharmacy && (
+              <SelectItem value="group-asc">Medicine Group: A-Z</SelectItem>
+            )}
             <SelectItem value="company-asc">Company Name: A-Z</SelectItem>
             <SelectItem value="expiry-asc">Expiry Date: Soonest</SelectItem>
           </SelectContent>

@@ -1,6 +1,6 @@
 import { collection, doc, getDocs, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
-import type { AccountStatus, AppMode, AuthUser } from '../types';
+import type { AccountStatus, AppMode, AuthUser, StoreType } from '../types';
 import { isAdminEmail } from '../admin-config';
 import { cachedCollection, invalidateCollectionCache } from './collection-cache';
 
@@ -56,6 +56,13 @@ export async function adminSetUserAppMode(
   appMode: AppMode
 ): Promise<void> {
   await adminUpdateUser(targetUserId, { appMode });
+}
+
+export async function adminSetUserStoreType(
+  targetUserId: string,
+  storeType: StoreType
+): Promise<void> {
+  await adminUpdateUser(targetUserId, { storeType });
 }
 
 export async function adminSetAccountStatus(
