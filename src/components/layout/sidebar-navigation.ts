@@ -10,6 +10,7 @@ import {
   ShoppingBag,
   ShoppingCart,
   Store,
+  Undo2,
   Wallet,
   type LucideIcon,
 } from 'lucide-react';
@@ -35,6 +36,7 @@ export const CORE_NAV_ITEMS: NavItem[] = [
 ];
 
 export const OTHER_NAV_ITEMS: NavItem[] = [
+  { href: '/sales-returns', icon: Undo2, label: 'Sales Returns', feature: 'sell' },
   { href: '/payables', icon: ArrowRightLeft, label: 'Payables (Suppliers)', feature: 'payables' },
   { href: '/dues', icon: Wallet, label: 'Customer Dues', feature: 'customer-dues' },
   { href: '/receivables', icon: HandCoins, label: 'Receivables', feature: 'receivables' },

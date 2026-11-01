@@ -1,4 +1,4 @@
-import type { SaleItem } from '../types';
+import type { Sale, SaleItem } from '../types';
 
 export type SaleDiscountType = 'none' | 'percentage' | 'amount';
 export type SalePaymentMethod = 'Cash' | 'Bank' | 'Due' | 'Split' | 'Paid by Credit';
@@ -56,6 +56,30 @@ export function computeSaleTotals(input: SaleTotalsInput): SaleTotals {
   const finalTotal = totalAfterDiscount - input.creditApplied;
 
   return { subtotal, discountAmount, totalAfterDiscount, finalTotal, totalSaleProfit };
+}
+
+/**
+ * The outstanding bill a stored sale currently attributes to its customer:
+ * everything not settled at the till. Cash/Bank settle fully (0); credit
+ * applied on the sale settles its own share; the rest is the receivable as
+ * originally created. This is the unit updateSale re-attribution trades in —
+ * an identical re-save yields a balance delta of zero by construction, and
+ * money already collected against the receivable is never double-counted.
+ */
+export function saleBillAmount(
+  sale: Pick<Sale, 'paymentMethod' | 'total'> & Partial<Pick<Sale, 'creditApplied' | 'amountPaid'>>
+): number {
+  const credit = Number(sale.creditApplied) || 0;
+  if (sale.paymentMethod === 'Due') {
+    return Math.max(0, (Number(sale.total) || 0) - credit);
+  }
+  if (sale.paymentMethod === 'Split') {
+    return Math.max(0, (Number(sale.total) || 0) - credit - (Number(sale.amountPaid) || 0));
+  }
+  if (sale.paymentMethod === 'Paid by Credit') {
+    return Math.max(0, credit);
+  }
+  return 0;
 }
 
 export interface ReceivableDraft {

@@ -32,6 +32,11 @@ function saleFrozenCost(sale: Sale, legacyCosts: Map<string, number>): number {
 }
 
 function returnCost(saleReturn: SalesReturn, legacyCosts: Map<string, number>): number {
+  // New sale-linked returns freeze the returned units' batch cost at record
+  // time; free-form returns fall back to the item's current production price.
+  if (saleReturn.totalReturnCost !== undefined) {
+    return Number(saleReturn.totalReturnCost) || 0;
+  }
   return saleReturn.items.reduce((sum, line) => sum + (legacyCosts.get(line.itemId) ?? 0) * line.quantity, 0);
 }
 

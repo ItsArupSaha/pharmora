@@ -150,6 +150,12 @@ export type SalesReturn = {
   customerId: string;
   items: SalesReturnItem[];
   totalReturnValue: number;
+  /** Original sale document id when the return is tied to a specific sale. */
+  saleId?: string;
+  /** Returned units were added back to stock (false = defective/disposed). */
+  restocked?: boolean;
+  /** Frozen cost of the returned units; profit reports subtract this. */
+  totalReturnCost?: number;
 };
 
 

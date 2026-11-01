@@ -6,17 +6,18 @@ import {
   getDocs,
   query,
   runTransaction,
-  where
+  where,
+  type Transaction
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { invalidateAppData } from './data-version';
 import { getCustomers } from './customers';
 import { normalizeCustomerKey } from '../search-utils';
-import type { Customer, Item, ItemBatch, Metadata, Sale, SaleItem } from '../types';
+import type { Customer, Item, Metadata, Sale, SaleItem } from '../types';
 import { resolveIsSalable } from '../item-flags';
 import { allocateFEFO, sumBatchQuantities } from '../batch-allocation';
-import { batchDocRef, buildBatchData, fetchItemBatches, newBatchDocRef, type ItemBatchWithId } from './batch-utils';
-import { buildReceivable, computeSaleTotals } from './sale-calculation';
+import { buildBatchData, fetchItemBatches, type ItemBatchWithId } from './batch-utils';
+import { buildReceivable, computeSaleTotals, saleBillAmount } from './sale-calculation';
 import {
   validateAmountPaid,
   validateCreditApplied,
@@ -24,7 +25,10 @@ import {
   validateSaleItems,
 } from '../sale-guards';
 import { docToSale } from './utils';
-import type { Transaction } from 'firebase/firestore';
+import { applyDueCustomerInTx, resolveDueCustomer, type DueCustomerInput, type DueCustomerMode } from './due-customer-resolution';
+import { applyBatchRestores, planBatchRestores, type BatchRestorePlan } from './sale-batch-restore';
+
+export type { DueCustomerInput };
 
 type SaleBatch = ItemBatchWithId & { isNew?: boolean };
 
@@ -86,13 +90,6 @@ interface DeductResult {
   itemsWithPrices: SaleItem[];
   totalProductionCost: number;
 }
-
-type BatchRestorePlan = {
-  ref: ReturnType<typeof batchDocRef>;
-  exists: boolean;
-  currentQty: number;
-  alloc: NonNullable<SaleItem['batches']>[number];
-};
 
 /**
  * FEFO deduction shared by addSale and updateSale: validates stock against
@@ -180,59 +177,6 @@ async function deductSaleLinesFEFO(
   return { itemsWithPrices, totalProductionCost };
 }
 
-/**
- * Read phase of batch restoration: fetches every batch document a sale line's
- * allocations point at via transaction reads. Firestore requires all
- * transaction reads before the first staged write, so planning and applying
- * are separate steps.
- */
-async function planBatchRestores(
-  transaction: Transaction,
-  userId: string,
-  line: SaleItem
-): Promise<BatchRestorePlan[]> {
-  if (!line.batches?.length) return [];
-
-  const plans: BatchRestorePlan[] = [];
-  for (const alloc of line.batches) {
-    const ref = batchDocRef(userId, line.itemId, alloc.batchId);
-    const snap = await transaction.get(ref);
-    plans.push({
-      ref,
-      exists: snap.exists(),
-      currentQty: snap.exists() ? Number(snap.data().quantity) || 0 : 0,
-      alloc,
-    });
-  }
-  return plans;
-}
-
-/** Write phase of batch restoration; pairs with planBatchRestores. */
-function applyBatchRestores(
-  transaction: Transaction,
-  plans: BatchRestorePlan[]
-): void {
-  for (const plan of plans) {
-    if (plan.exists) {
-      transaction.update(plan.ref, { quantity: plan.currentQty + plan.alloc.quantity });
-    } else {
-      transaction.set(plan.ref, buildBatchData({
-        batchNo: plan.alloc.batchNo,
-        expiryDate: plan.alloc.expiryDate ?? null,
-        quantity: plan.alloc.quantity,
-        initialQuantity: plan.alloc.quantity,
-        cost: plan.alloc.costAtSale,
-      }));
-    }
-  }
-}
-
-export interface DueCustomerInput {
-  name: string;
-  phone: string;
-  contactName?: string;
-}
-
 export async function addSale(
   userId: string,
   data: Omit<Sale, 'id' | 'saleId' | 'subtotal' | 'total'> & {
@@ -253,45 +197,26 @@ export async function addSale(
     const saleDate = new Date(data.date) || new Date();
 
     // Due and split sales both carry a shop name + phone instead of a
-    // customer id. The shop name is the identity: an exact (case/spacing-
-    // insensitive) name match reuses the shop no matter what, so one shop
-    // can never be created twice; a phone-digit match (with country-prefix
-    // tolerance) is the fallback. Only a genuinely new shop is created.
-    // Cash/Bank sales stay on the walk-in customer.
-    // doc() cannot be built from an empty id, so a missing customerId gets
-    // a throwaway placeholder ref — the Due/Split block below always
-    // replaces it, and Cash/Bank without one is rejected right after.
+    // customer id; resolveDueCustomer reuses an existing shop or plans a new
+    // one (created inside the transaction below). Cash/Bank sales stay on the
+    // walk-in customer. doc() cannot be built from an empty id, so a missing
+    // customerId gets a throwaway placeholder ref — the Due/Split block below
+    // always replaces it, and Cash/Bank without one is rejected right after.
     let customerRef = data.customerId
       ? doc(customersCollection, data.customerId)
       : doc(customersCollection);
     let createCustomerInTx = false;
     let backfillExistingCustomer = false;
     if (data.paymentMethod === 'Due' || data.paymentMethod === 'Split') {
-      const name = (data.dueCustomer?.name || '').trim();
-      const phoneDigits = (data.dueCustomer?.phone || '').replace(/\D/g, '');
-      if (!name || phoneDigits.length < 6 || phoneDigits.length > 15) {
-        return { success: false, error: 'Due and split sales need a shop name and a valid phone number.' };
-      }
-      const existing = await getCustomers(userId); // cached, version-guarded
-      const byShopName = existing.find(
-        (c) => normalizeCustomerKey(c.name) === normalizeCustomerKey(name) && normalizeCustomerKey(c.name) !== 'walk-in customer'
-      );
-      const phoneTail = phoneDigits.slice(-10);
-      const byPhone = byShopName ||
-        existing.find((c) => {
-          const d = (c.phone || '').replace(/\D/g, '');
-          if (d === phoneDigits) return true;
-          // Tolerate country-prefix differences (8801… vs 01…) on 6+ digit numbers.
-          return d.length >= 6 && phoneDigits.length >= 6 &&
-            (d.endsWith(phoneTail) || phoneDigits.endsWith(d.slice(-10)));
-        });
-      if (byPhone) {
-        customerRef = doc(customersCollection, byPhone.id);
-        backfillExistingCustomer = true;
-      } else {
-        customerRef = doc(customersCollection); // new customer
-        createCustomerInTx = true;
-      }
+      const resolution = await resolveDueCustomer(userId, {
+        name: data.dueCustomer?.name || '',
+        phone: data.dueCustomer?.phone || '',
+        contactName: data.dueCustomer?.contactName,
+      });
+      if (!resolution.ok) return { success: false, error: resolution.error };
+      customerRef = doc(customersCollection, resolution.customerId);
+      createCustomerInTx = resolution.mode === 'create';
+      backfillExistingCustomer = resolution.mode === 'reuse';
       data.customerId = customerRef.id;
     } else if (!data.customerId) {
       return {
@@ -315,31 +240,13 @@ export async function addSale(
       ]);
 
       if (createCustomerInTx) {
-        transaction.set(customerRef, {
-          name: (data.dueCustomer?.name || '').trim(),
-          phone: (data.dueCustomer?.phone || '').trim(),
-          address: 'N/A',
-          openingBalance: 0,
-          dueBalance: 0,
-          ...(data.dueCustomer?.contactName ? { contactName: data.dueCustomer.contactName } : {}),
-        });
+        applyDueCustomerInTx(transaction, customerRef, null, data.dueCustomer!, 'create');
       } else if (!customerDoc.exists()) {
         throw new Error(`Customer with id ${data.customerId} does not exist!`);
       } else if (backfillExistingCustomer) {
         // Matched an existing shop: fill in contact details only where the
         // record is missing them — never overwrite what is already stored.
-        const existingData = (customerDoc.data() || {}) as Partial<Customer>;
-        const patch: { phone?: string; contactName?: string } = {};
-        const existingPhone = (existingData.phone || '').replace(/\D/g, '');
-        if (!existingPhone && data.dueCustomer?.phone) {
-          patch.phone = data.dueCustomer.phone.trim();
-        }
-        if (!existingData.contactName && data.dueCustomer?.contactName) {
-          patch.contactName = data.dueCustomer.contactName;
-        }
-        if (Object.keys(patch).length > 0) {
-          transaction.update(customerRef, patch);
-        }
+        applyDueCustomerInTx(transaction, customerRef, (customerDoc.data() || {}) as Partial<Customer>, data.dueCustomer!, 'reuse');
       }
 
       // Credit can only spend the advance the customer really has (M2 guard).
@@ -554,16 +461,18 @@ export async function deleteSale(userId: string, saleId: string): Promise<{ succ
         }
       }
 
-      // 2. Adjust customer balance
+      // 2. Adjust customer balance. Reverse exactly what the sale itself did
+      //    to the balance: the full outstanding-at-till bill for Due/Split
+      //    (credit applied is part of that impact), or the consumed credit
+      //    for Paid-by-Credit sales. Money the customer later paid against
+      //    the receivable stays on their account as refundable advance — the
+      //    payment traces remain in the ledger.
       if (customerRef && customerDoc?.exists()) {
-        let amountToReverse = 0;
-        if (saleToDelete.paymentMethod === 'Due' || saleToDelete.paymentMethod === 'Split') {
-          amountToReverse = saleToDelete.total - (saleToDelete.amountPaid || 0);
-        }
-        const creditReversal = saleToDelete.creditApplied || 0;
-        const currentDue = customerDoc.data().dueBalance || 0;
-        const newDueBalance = currentDue - amountToReverse + creditReversal;
-        transaction.update(customerRef, { dueBalance: newDueBalance });
+        const saleImpact = saleToDelete.paymentMethod === 'Due' || saleToDelete.paymentMethod === 'Split'
+          ? (Number(saleToDelete.total) || 0) - (Number(saleToDelete.amountPaid) || 0)
+          : (Number(saleToDelete.creditApplied) || 0);
+        const currentDue = Number(customerDoc.data().dueBalance) || 0;
+        transaction.update(customerRef, { dueBalance: currentDue - saleImpact });
       }
 
       // 3. Delete related transactions
@@ -588,7 +497,13 @@ export async function deleteSale(userId: string, saleId: string): Promise<{ succ
 export async function updateSale(
   userId: string,
   saleDocId: string,
-  data: Omit<Sale, 'id' | 'saleId' | 'subtotal' | 'total'> & { creditApplied?: number; total?: number; date?: string }
+  data: Omit<Sale, 'id' | 'saleId' | 'subtotal' | 'total'> & {
+    creditApplied?: number;
+    total?: number;
+    date?: string;
+    /** Typed shop identity for due/split edits; resolved/created like the POS. */
+    dueCustomer?: DueCustomerInput;
+  }
 ): Promise<{ success: boolean; error?: string; sale?: Sale }> {
   if (!db || !userId || !saleDocId) return { success: false, error: "Database not configured or invalid sale ID." };
 
@@ -680,7 +595,44 @@ export async function updateSale(
       }
       attributedCustomerId = walkIn.id;
     }
+    // A due/split edit may rename the shop outright: resolve the typed shop
+    // exactly like the POS does (existing shop reused, new shop created in
+    // the transaction). Resolution wins over any submitted customer id.
+    let dueCustomerMode: DueCustomerMode | null = null;
+    let resolvedDueCustomer: DueCustomerInput | null = null;
+    if (data.dueCustomer && (data.paymentMethod === 'Due' || data.paymentMethod === 'Split')) {
+      const resolution = await resolveDueCustomer(userId, data.dueCustomer);
+      if (!resolution.ok) return { success: false, error: resolution.error };
+      attributedCustomerId = resolution.customerId;
+      dueCustomerMode = resolution.mode;
+      resolvedDueCustomer = data.dueCustomer;
+    }
     data.customerId = attributedCustomerId;
+
+    // Bill model (see saleBillAmount): the sale's outstanding bill before and
+    // after the edit, plus what has already been settled against it. An
+    // identical re-save yields a balance delta of zero by construction, and
+    // money collected against the receivable is never billed twice.
+    const oldBill = saleBillAmount(oldSale);
+    let pendingOldAmount = 0;
+    relatedTransactionDocs.forEach((d) => {
+      const t = d.data();
+      if (t?.type === 'Receivable' && t?.status === 'Pending') {
+        pendingOldAmount += Number(t.amount) || 0;
+      }
+    });
+    const oldReceivableOriginal =
+      oldSale.paymentMethod === 'Due'
+        ? (Number(oldSale.total) || 0) - (Number(oldSale.creditApplied) || 0)
+        : oldSale.paymentMethod === 'Split'
+          ? (Number(oldSale.total) || 0) - (Number(oldSale.creditApplied) || 0) - (Number(oldSale.amountPaid) || 0)
+          : 0;
+    const oldRemaining = Math.min(Math.max(0, pendingOldAmount), Math.max(0, oldReceivableOriginal));
+    const settled = Math.max(0, oldReceivableOriginal - oldRemaining);
+    const oldContribution = (Number(oldSale.creditApplied) || 0) + oldRemaining;
+    const sameCustomer = oldSale.customerId === data.customerId || !oldSale.customerId;
+    // Another shop's advance can never follow the sale to a new customer.
+    const creditApplied = sameCustomer ? Number(data.creditApplied) || 0 : 0;
 
     const result = await runTransaction(db, async (transaction) => {
       // A legacy sale with no stored customer is attributed to the same
@@ -692,19 +644,25 @@ export async function updateSale(
 
       const oldCustomerDoc = await transaction.get(oldCustomerRef);
       const newCustomerDoc =
-        oldSale.customerId === data.customerId
+        oldCustomerRef.id === newCustomerRef.id
           ? oldCustomerDoc
           : await transaction.get(newCustomerRef);
 
-      if (!newCustomerDoc.exists()) {
+      if (dueCustomerMode === 'create') {
+        applyDueCustomerInTx(transaction, newCustomerRef, null, resolvedDueCustomer!, 'create');
+      } else if (!newCustomerDoc.exists()) {
         throw new Error(`Customer with id ${data.customerId} does not exist!`);
+      } else if (dueCustomerMode === 'reuse') {
+        applyDueCustomerInTx(transaction, newCustomerRef, (newCustomerDoc.data() || {}) as Partial<Customer>, resolvedDueCustomer!, 'reuse');
       }
 
-      // Credit can only spend the advance the customer really has (M2 guard).
-      const updCreditError = validateCreditApplied(
-        Number(data.creditApplied) || 0,
-        Number(newCustomerDoc.data()?.dueBalance) || 0
-      );
+      // Credit can only spend the advance the customer really has (M2 guard),
+      // measured after the old sale's contribution is stripped back out —
+      // re-saving a sale that used credit must not fail its own validation.
+      const baseBalance = sameCustomer
+        ? (Number(oldCustomerDoc.data()?.dueBalance) || 0) - oldContribution
+        : (Number(newCustomerDoc.data()?.dueBalance) || 0);
+      const updCreditError = validateCreditApplied(creditApplied, baseBalance);
       if (updCreditError) throw new Error(updCreditError);
 
       const itemDocs = await Promise.all(selectedItemRefs.map((ref) => transaction.get(ref)));
@@ -744,7 +702,6 @@ export async function updateSale(
         data.items
       );
 
-      const creditApplied = data.creditApplied || 0;
       const { subtotal: calculatedSubtotal, totalAfterDiscount, finalTotal, totalSaleProfit } = computeSaleTotals({
         items: itemsWithPrices,
         totalProductionCost,
@@ -755,48 +712,38 @@ export async function updateSale(
         creditApplied,
       });
 
-      // 4. Adjust customer due balances
-      if (oldCustomerDoc.exists()) {
-        let oldAmountDue = 0;
-        if (oldSale.paymentMethod === 'Due' || oldSale.paymentMethod === 'Split') {
-          oldAmountDue = oldSale.total - (oldSale.amountPaid || 0);
-        }
-        const oldCredit = oldSale.creditApplied || 0;
-        const currentOldDue = oldCustomerDoc.data().dueBalance || 0;
-        const newOldCustomerDue = currentOldDue - oldAmountDue + oldCredit;
+      // 4. Adjust customer due balances on the bill model: the old sale's
+      //    contribution (credit applied + remaining receivable) is removed,
+      //    the new terms contribute their credit plus the new remaining
+      //    amount. Money already settled against this sale transfers with it
+      //    — it never re-appears as due on either customer.
+      const newBill = data.paymentMethod === 'Due'
+        ? finalTotal
+        : data.paymentMethod === 'Split'
+          ? finalTotal - (Number(data.amountPaid) || 0)
+          : data.paymentMethod === 'Paid by Credit'
+            ? creditApplied
+            : 0;
+      const newRemaining = newBill - settled;
+      const newContribution = creditApplied + newRemaining;
 
-        if (oldSale.customerId === data.customerId) {
-          let newAmountDue = 0;
-          if (data.paymentMethod === 'Due' || data.paymentMethod === 'Split') {
-            if (data.paymentMethod === 'Split' && data.amountPaid && data.amountPaid > 0) {
-              newAmountDue = finalTotal - data.amountPaid;
-            } else {
-              newAmountDue = finalTotal;
-            }
-          }
-          const finalCustomerDue = newOldCustomerDue + newAmountDue + creditApplied;
-          transaction.update(newCustomerRef, { dueBalance: finalCustomerDue });
-        } else {
-          transaction.update(oldCustomerRef, { dueBalance: newOldCustomerDue });
-
-          const currentNewDue = newCustomerDoc.data()?.dueBalance || 0;
-          let newAmountDue = 0;
-          if (data.paymentMethod === 'Due' || data.paymentMethod === 'Split') {
-            if (data.paymentMethod === 'Split' && data.amountPaid && data.amountPaid > 0) {
-              newAmountDue = finalTotal - data.amountPaid;
-            } else {
-              newAmountDue = finalTotal;
-            }
-          }
-          const finalNewCustomerDue = currentNewDue + newAmountDue + creditApplied;
-          transaction.update(newCustomerRef, { dueBalance: finalNewCustomerDue });
+      if (oldCustomerRef.id === newCustomerRef.id) {
+        const currentDue = Number(oldCustomerDoc.data()?.dueBalance) || 0;
+        transaction.update(newCustomerRef, { dueBalance: currentDue - oldContribution + newContribution });
+      } else {
+        if (oldCustomerDoc.exists()) {
+          const currentOldDue = Number(oldCustomerDoc.data()?.dueBalance) || 0;
+          transaction.update(oldCustomerRef, { dueBalance: currentOldDue - oldContribution });
         }
+        const currentNewDue = Number(newCustomerDoc.data()?.dueBalance) || 0;
+        transaction.update(newCustomerRef, { dueBalance: currentNewDue + newContribution });
       }
 
       // 5. Delete old related receivables
       relatedTransactionDocs.forEach((d) => transaction.delete(d.ref));
 
-      // 6. Create new receivable transaction if Due or Split
+      // 6. Re-create the receivable for the new terms with the amount that is
+      //    actually still outstanding for this sale. Nothing owed → none.
       if (data.paymentMethod === 'Due' || data.paymentMethod === 'Split') {
         const receivable = buildReceivable({
           paymentMethod: data.paymentMethod,
@@ -808,9 +755,10 @@ export async function updateSale(
           customerId: data.customerId,
         });
 
-        if (receivable) {
+        if (receivable && newRemaining > 0) {
           transaction.set(doc(transactionsCollection), {
             ...receivable,
+            amount: newRemaining,
             dueDate: Timestamp.fromDate(new Date()),
           });
         }

@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { format } from 'date-fns';
-import { Pencil, Trash2 } from 'lucide-react';
+import { Pencil, RotateCcw, Trash2 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,7 @@ import { useAccountAccess } from '@/hooks/use-account-access';
 import type { Sale, Item, Customer } from '@/lib/types';
 import { SaleDetailsDialog } from '../sale-details-dialog';
 import { EditSaleDialog } from './edit-sale-dialog';
+import { SaleReturnDialog } from './sale-return-dialog';
 
 interface SalesTableProps {
   userId: string;
@@ -38,11 +39,18 @@ export function SalesTable({
 }: SalesTableProps) {
   const [editingSale, setEditingSale] = React.useState<Sale | null>(null);
   const [isEditOpen, setIsEditOpen] = React.useState(false);
+  const [returningSale, setReturningSale] = React.useState<Sale | null>(null);
+  const [isReturnOpen, setIsReturnOpen] = React.useState(false);
   const { canWrite } = useAccountAccess();
 
   const handleEditClick = (sale: Sale) => {
     setEditingSale(sale);
     setIsEditOpen(true);
+  };
+
+  const handleReturnClick = (sale: Sale) => {
+    setReturningSale(sale);
+    setIsReturnOpen(true);
   };
 
   return (
@@ -88,10 +96,13 @@ export function SalesTable({
                   <TableCell className="text-right text-xs sm:text-sm font-medium">৳{sale.total.toFixed(2)}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex flex-col items-end gap-0.5">
-                      <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-9 sm:w-9" onClick={() => handleEditClick(sale)} disabled={isPending || !canWrite}>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-9 sm:w-9" onClick={() => handleEditClick(sale)} disabled={isPending || !canWrite} title="Edit sale">
                         <Pencil className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground hover:text-foreground" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-9 sm:w-9" onClick={() => onDelete(sale.id)} disabled={isPending || !canWrite}>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-9 sm:w-9" onClick={() => handleReturnClick(sale)} disabled={isPending || !canWrite} title="Return items">
+                        <RotateCcw className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground hover:text-foreground" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-9 sm:w-9" onClick={() => onDelete(sale.id)} disabled={isPending || !canWrite} title="Delete sale">
                         <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-destructive" />
                       </Button>
                     </div>
@@ -114,6 +125,18 @@ export function SalesTable({
         isOpen={isEditOpen}
         onOpenChange={setIsEditOpen}
         sale={editingSale}
+        items={items}
+        customers={customers}
+        onSuccess={() => {
+          if (onSuccess) onSuccess();
+        }}
+      />
+
+      <SaleReturnDialog
+        userId={userId}
+        isOpen={isReturnOpen}
+        onOpenChange={setIsReturnOpen}
+        sale={returningSale}
         items={items}
         customers={customers}
         onSuccess={() => {

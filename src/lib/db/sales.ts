@@ -1,4 +1,5 @@
 import type { Sale } from '../types';
+import type { DueCustomerInput } from './due-customer-resolution';
 import {
   getSalesMaster,
   getSalesPaginated as getSalesPaginatedImpl,
@@ -12,6 +13,8 @@ import {
   deleteSale as deleteSaleImpl,
   updateSale as updateSaleImpl,
 } from './sales-actions';
+
+export type { DueCustomerInput };
 
 export async function getSales(userId: string): Promise<Sale[]> {
   return getSalesMaster(userId);
@@ -51,7 +54,12 @@ export async function addSale(
 export async function updateSale(
   userId: string,
   saleDocId: string,
-  data: Omit<Sale, 'id' | 'saleId' | 'subtotal' | 'total'> & { creditApplied?: number; total?: number; date?: string }
+  data: Omit<Sale, 'id' | 'saleId' | 'subtotal' | 'total'> & {
+    creditApplied?: number;
+    total?: number;
+    date?: string;
+    dueCustomer?: DueCustomerInput;
+  }
 ): Promise<{ success: boolean; error?: string; sale?: Sale }> {
   return updateSaleImpl(userId, saleDocId, data);
 }

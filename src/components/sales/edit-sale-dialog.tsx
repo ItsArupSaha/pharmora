@@ -21,6 +21,7 @@ import type { Customer, Item, Sale } from '@/lib/types';
 import { saleFormSchema, type SaleFormValues } from './schema';
 import { SalePaymentToggle } from './sale-payment-toggle';
 import { SaleItemsTable } from './sale-items-table';
+import { DueCustomerFields } from './due-customer-fields';
 import { SplitPaymentFields } from './split-payment-fields';
 import { SaleSummaryCard } from './sale-summary-card';
 
@@ -97,17 +98,25 @@ export function EditSaleDialog({
     }
   }, [isOpen, sale, customers, form]);
 
-  // Due/split validation requires the shop identity; keep it in sync with
-  // the customer selected above (updateSale attributes dues by customerId).
-  const watchCustomerId = useWatch({ control: form.control, name: 'customerId' });
+  const watchPaymentMethod = useWatch({ control: form.control, name: 'paymentMethod' });
+  const isDueLike = watchPaymentMethod === 'Due' || watchPaymentMethod === 'Split';
+
+  // Switching to Due/Split seeds the shop capture from the currently selected
+  // customer; from there the typed shop name is the source of truth (the
+  // server re-resolves it and creates the shop when it does not exist yet).
   React.useEffect(() => {
-    if (!watchCustomerId) return;
-    const selected = customers.find((c) => c.id === watchCustomerId);
+    if (!isDueLike) return;
+    if ((form.getValues('dueShopName') || '').trim()) return;
+    const currentId = form.getValues('customerId') || sale?.customerId;
+    const selected = customers.find((c) => c.id === currentId);
     if (selected) {
       form.setValue('dueShopName', selected.name, { shouldValidate: false });
       form.setValue('dueCustomerPhone', selected.phone, { shouldValidate: false });
+      if (selected.contactName) {
+        form.setValue('dueContactName', selected.contactName, { shouldValidate: false });
+      }
     }
-  }, [watchCustomerId, customers, form]);
+  }, [isDueLike, customers, form, sale]);
 
   const watchItems = useWatch({ control: form.control, name: 'items' }) || [];
 
@@ -142,10 +151,20 @@ export function EditSaleDialog({
       try {
         const saleData = {
           ...data,
-          customerId: data.customerId || sale.customerId || '',
-          // The edit dialog attributes dues via the customer select; the
-          // typed shop fields are validation-only here. Split keeps its
-          // paid-now amount; other methods carry none.
+          // Due/split sales are attributed by the typed shop identity; cash
+          // and bank keep the customer select. The sale's own credit stays
+          // applied on due/split edits — the server releases it when the
+          // sale moves to a different customer.
+          customerId: isDueLike ? '' : (data.customerId || sale.customerId || ''),
+          dueCustomer: isDueLike
+            ? {
+                name: (data.dueShopName || '').trim(),
+                phone: (data.dueCustomerPhone || '').trim(),
+                contactName: (data.dueContactName || '').trim() || undefined,
+              }
+            : undefined,
+          creditApplied: isDueLike ? (sale.creditApplied || 0) : 0,
+          // Split keeps its paid-now amount; other methods carry none.
           amountPaid: data.paymentMethod === 'Split' ? Number(data.amountPaid) : undefined,
           splitPaymentMethod: data.paymentMethod === 'Split' ? ('Cash' as const) : undefined,
           items: activeItems as any,
@@ -195,6 +214,8 @@ export function EditSaleDialog({
       });
   }, [items, sale]);
 
+  const saleCustomer = customers.find((c) => c.id === sale?.customerId);
+
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col">
@@ -208,30 +229,42 @@ export function EditSaleDialog({
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="flex-1 flex flex-col overflow-hidden space-y-4">
             <div className="flex-1 overflow-y-auto pr-2 space-y-4">
-              <FormField
-                control={form.control}
-                name="customerId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Customer</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select customer" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {customers.map((c) => (
-                          <SelectItem key={c.id} value={c.id}>
-                            {c.name} {c.phone ? `(${c.phone})` : ''}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {isDueLike ? (
+                <div className="space-y-1">
+                  {saleCustomer && (
+                    <p className="text-sm text-muted-foreground">
+                      Currently recorded under <span className="font-medium text-foreground">{saleCustomer.name}</span>. Change the shop name and
+                      phone below to move this sale — its dues and receivable move with it.
+                    </p>
+                  )}
+                  <DueCustomerFields customers={customers} />
+                </div>
+              ) : (
+                <FormField
+                  control={form.control}
+                  name="customerId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Customer</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select customer" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {customers.map((c) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              {c.name} {c.phone ? `(${c.phone})` : ''}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
 
               <SalePaymentToggle />
               <Separator />
