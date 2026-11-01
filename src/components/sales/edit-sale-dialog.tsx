@@ -16,7 +16,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { updateSale } from '@/lib/actions';
+import { getCustomers, updateSale } from '@/lib/actions';
 import type { Customer, Item, Sale } from '@/lib/types';
 import { saleFormSchema, type SaleFormValues } from './schema';
 import { SalePaymentToggle } from './sale-payment-toggle';
@@ -70,55 +70,79 @@ export function EditSaleDialog({
     name: 'items',
   });
 
+  // The page's customer list can be stale (a due shop created by the POS in
+  // this session is not in it yet), which would leave the shop fields empty.
+  // Refresh the directory every time the dialog opens.
+  const [directory, setDirectory] = React.useState<Customer[]>(customers);
+  React.useEffect(() => setDirectory(customers), [customers]);
   React.useEffect(() => {
-    if (isOpen && sale) {
-      const saleCustomer = customers.find((c) => c.id === sale.customerId);
-      form.reset({
-        customerId: sale.customerId || '',
-        date: sale.date ? new Date(sale.date) : new Date(),
-        items: (sale.items || []).map((item) => ({
-          itemId: item.itemId,
-          quantity: item.quantity,
-          price: item.price !== undefined ? item.price : 0,
-        })),
-        discountType: sale.discountType || 'none',
-        discountValue: sale.discountValue || 0,
-        // Legacy Paid-by-Credit sales default to Due when edited; Split
-        // sales stay editable as Split with their original paid amount.
-        paymentMethod: (['Cash', 'Bank', 'Due', 'Split'] as const).includes(sale.paymentMethod as any)
-          ? (sale.paymentMethod as 'Cash' | 'Bank' | 'Due' | 'Split')
-          : 'Due',
-        dueShopName: saleCustomer?.name || '',
-        dueCustomerPhone: saleCustomer?.phone || '',
-        dueContactName: saleCustomer?.contactName || '',
-        amountPaid: sale.amountPaid ?? 0,
-        extraSales: sale.extraSales || 0,
-        total: sale.total || 0,
-      });
-    }
-  }, [isOpen, sale, customers, form]);
+    if (!isOpen || !userId) return;
+    let active = true;
+    getCustomers(userId)
+      .then((list) => {
+        if (active) setDirectory(list);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [isOpen, userId]);
+
+  // Reset once per opened sale — never while the user is editing.
+  const saleCustomer = directory.find((c) => c.id === sale?.customerId);
+  const resetKey = `${isOpen}:${sale?.id ?? ''}`;
+  React.useEffect(() => {
+    if (!isOpen || !sale) return;
+    form.reset({
+      customerId: sale.customerId || '',
+      date: sale.date ? new Date(sale.date) : new Date(),
+      items: (sale.items || []).map((item) => ({
+        itemId: item.itemId,
+        quantity: item.quantity,
+        price: item.price !== undefined ? item.price : 0,
+      })),
+      discountType: sale.discountType || 'none',
+      discountValue: sale.discountValue || 0,
+      // Legacy Paid-by-Credit sales default to Due when edited; Split
+      // sales stay editable as Split with their original paid amount.
+      paymentMethod: (['Cash', 'Bank', 'Due', 'Split'] as const).includes(sale.paymentMethod as any)
+        ? (sale.paymentMethod as 'Cash' | 'Bank' | 'Due' | 'Split')
+        : 'Due',
+      dueShopName: saleCustomer?.name || '',
+      dueCustomerPhone: saleCustomer?.phone || '',
+      dueContactName: saleCustomer?.contactName || '',
+      amountPaid: sale.amountPaid ?? 0,
+      extraSales: sale.extraSales || 0,
+      total: sale.total || 0,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetKey]);
 
   const watchPaymentMethod = useWatch({ control: form.control, name: 'paymentMethod' });
   const isDueLike = watchPaymentMethod === 'Due' || watchPaymentMethod === 'Split';
 
-  // Switching to Due/Split seeds the shop capture from the currently selected
-  // customer; from there the typed shop name is the source of truth (the
-  // server re-resolves it and creates the shop when it does not exist yet).
+  // Top up any shop field the reset could not fill (customer list arrived
+  // after the reset, or the record predates the field). Each field is filled
+  // only while still empty, so typing is never overwritten.
   React.useEffect(() => {
-    if (!isDueLike) return;
-    if ((form.getValues('dueShopName') || '').trim()) return;
-    const currentId = form.getValues('customerId') || sale?.customerId;
-    const selected = customers.find((c) => c.id === currentId);
-    if (selected) {
+    if (!isDueLike || !sale) return;
+    const currentId = form.getValues('customerId') || sale.customerId;
+    const selected = directory.find((c) => c.id === currentId);
+    if (!selected) return;
+    if (!(form.getValues('dueShopName') || '').trim()) {
       form.setValue('dueShopName', selected.name, { shouldValidate: false });
-      form.setValue('dueCustomerPhone', selected.phone, { shouldValidate: false });
-      if (selected.contactName) {
-        form.setValue('dueContactName', selected.contactName, { shouldValidate: false });
-      }
     }
-  }, [isDueLike, customers, form, sale]);
+    if (!(form.getValues('dueCustomerPhone') || '').trim()) {
+      form.setValue('dueCustomerPhone', selected.phone, { shouldValidate: false });
+    }
+    if (!(form.getValues('dueContactName') || '').trim() && selected.contactName) {
+      form.setValue('dueContactName', selected.contactName, { shouldValidate: false });
+    }
+  }, [isDueLike, directory, form, sale]);
 
   const watchItems = useWatch({ control: form.control, name: 'items' }) || [];
+  const watchDiscountType = useWatch({ control: form.control, name: 'discountType' }) || 'none';
+  const watchDiscountValue = Number(useWatch({ control: form.control, name: 'discountValue' }) || 0);
 
   const subtotal = React.useMemo(() => {
     const priceById = new Map(items.map((item) => [item.id, Number(item.sellingPrice) || 0]));
@@ -131,6 +155,17 @@ export function EditSaleDialog({
       return acc + unitPrice * (Number(item?.quantity) || 0);
     }, 0);
   }, [watchItems, items]);
+
+  // The summary's final total must include the sale's own discount, so a
+  // plain re-save never trades a discounted total for the raw item sum.
+  const netSubtotal = React.useMemo(() => {
+    const discountAmount = watchDiscountType === 'percentage'
+      ? subtotal * (watchDiscountValue / 100)
+      : watchDiscountType === 'amount'
+        ? watchDiscountValue
+        : 0;
+    return subtotal - Math.min(subtotal, Math.max(0, discountAmount));
+  }, [subtotal, watchDiscountType, watchDiscountValue]);
 
   const handleAddNewRow = () => append({ itemId: '', quantity: 1 });
 
@@ -214,8 +249,6 @@ export function EditSaleDialog({
       });
   }, [items, sale]);
 
-  const saleCustomer = customers.find((c) => c.id === sale?.customerId);
-
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col">
@@ -237,7 +270,7 @@ export function EditSaleDialog({
                       phone below to move this sale — its dues and receivable move with it.
                     </p>
                   )}
-                  <DueCustomerFields customers={customers} />
+                  <DueCustomerFields customers={directory} />
                 </div>
               ) : (
                 <FormField
@@ -253,7 +286,7 @@ export function EditSaleDialog({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {customers.map((c) => (
+                          {directory.map((c) => (
                             <SelectItem key={c.id} value={c.id}>
                               {c.name} {c.phone ? `(${c.phone})` : ''}
                             </SelectItem>
@@ -278,7 +311,11 @@ export function EditSaleDialog({
 
               <Separator />
               {form.watch('paymentMethod') === 'Split' && <SplitPaymentFields />}
-              <SaleSummaryCard subtotal={subtotal} />
+              <SaleSummaryCard
+                subtotal={netSubtotal}
+                authoredTotal={sale?.total}
+                resetKey={resetKey}
+              />
             </div>
 
             <DialogFooter className="pt-2 border-t">

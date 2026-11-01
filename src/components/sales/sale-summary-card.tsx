@@ -7,6 +7,14 @@ import { Input } from '@/components/ui/input';
 
 interface SaleSummaryCardProps {
   subtotal: number;
+  /**
+   * Grand total stored on the record being edited. While the form total still
+   * equals it, the card leaves the field alone — manual overrides and
+   * discounts the form cannot recompute must survive a plain re-open.
+   */
+  authoredTotal?: number;
+  /** Changes whenever a different record is opened; re-arms auto-total. */
+  resetKey?: string;
 }
 
 /**
@@ -14,18 +22,39 @@ interface SaleSummaryCardProps {
  * display-only — the server computes it from item-record prices plus this
  * field, so the browser can never hand-pick a total.
  */
-export function SaleSummaryCard({ subtotal }: SaleSummaryCardProps) {
+export function SaleSummaryCard({ subtotal, authoredTotal, resetKey }: SaleSummaryCardProps) {
   const { control, setValue, watch } = useFormContext();
   const [isTotalEdited, setIsTotalEdited] = React.useState(false);
   const totalValue = watch('total');
   const extraSalesValue = watch('extraSales') || 0;
+  // Tracks what this card last saw as the computed total, so a freshly opened
+  // record's stored total is honored exactly once.
+  const seenComputedRef = React.useRef<number | null>(null);
+
+  // Re-arm auto-total whenever a different record is opened for editing.
+  React.useEffect(() => {
+    seenComputedRef.current = null;
+    setIsTotalEdited(false);
+  }, [resetKey]);
 
   // Auto-update final total in form when subtotal or extraSales changes, unless manually overridden
   React.useEffect(() => {
-    if (!isTotalEdited) {
-      setValue('total', subtotal + Number(extraSalesValue));
+    if (isTotalEdited) return;
+    const computed = subtotal + Number(extraSalesValue);
+    const authored = authoredTotal !== undefined ? Number(authoredTotal) : null;
+    if (
+      authored !== null &&
+      seenComputedRef.current === null &&
+      Math.abs(Number(totalValue) - authored) < 0.005
+    ) {
+      // Freshly opened record: its stored total is authoritative.
+      seenComputedRef.current = computed;
+      return;
     }
-  }, [subtotal, extraSalesValue, setValue, isTotalEdited]);
+    seenComputedRef.current = computed;
+    if (Number(totalValue) === computed) return;
+    setValue('total', computed);
+  }, [subtotal, extraSalesValue, isTotalEdited, authoredTotal, totalValue, setValue]);
 
   // Reset override state when subtotal, extraSales, and total value all become zero (e.g. on form reset)
   React.useEffect(() => {

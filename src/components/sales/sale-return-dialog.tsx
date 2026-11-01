@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { addSalesReturn, getSalesReturnsForSale } from '@/lib/actions';
+import { saleReturnPriceFactor } from '@/lib/db/sale-calculation';
 import type { Customer, Item, Sale } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import {
@@ -68,12 +69,19 @@ export function SaleReturnDialog({
       const priorReturns = await getSalesReturnsForSale(userId, sale.id);
       const returnedByItem = new Map<string, number>();
       for (const ret of priorReturns) {
+        // Sale-adjusted returns already shrank the sale's own lines — the
+        // quantities on display are what remains, so only older returns
+        // (recorded before sale-adjustment) still reduce the cap here.
+        if (ret.saleAdjusted) continue;
         for (const line of ret.items) {
           returnedByItem.set(line.itemId, (returnedByItem.get(line.itemId) || 0) + (Number(line.quantity) || 0));
         }
       }
 
       const titleById = new Map(items.map((item) => [item.id, item.title]));
+      // Credit previews use the discounted unit price the customer actually
+      // paid — identical to the server's pricing for the same sale.
+      const priceFactor = saleReturnPriceFactor(sale);
       const aggregated = new Map<string, ReturnLine>();
       for (const line of sale.items) {
         const existing = aggregated.get(line.itemId);
@@ -83,7 +91,7 @@ export function SaleReturnDialog({
           aggregated.set(line.itemId, {
             itemId: line.itemId,
             title: titleById.get(line.itemId) || 'Unknown Item',
-            unitPrice: Number(line.price) || 0,
+            unitPrice: Math.round((Number(line.price) || 0) * priceFactor * 100) / 100,
             soldQty: Number(line.quantity) || 0,
             alreadyReturned: returnedByItem.get(line.itemId) || 0,
             returnQty: 0,

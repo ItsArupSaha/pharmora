@@ -42,7 +42,10 @@ export function useSalesManagement({ userId }: UseSalesManagementProps) {
         return item;
       }));
     }
-  }, []);
+    // A due/split sale may have created a new shop server-side — refresh the
+    // customer directory so the sales history edit dialog prefills it.
+    getCustomers(userId).then(setCustomers).catch(() => {});
+  }, [userId]);
 
   const loadInitialData = React.useCallback(async () => {
     setIsInitialLoading(true);

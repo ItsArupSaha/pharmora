@@ -10,15 +10,17 @@ import {
   query,
   runTransaction,
   startAfter,
-  where
+  where,
+  type DocumentSnapshot
 } from 'firebase/firestore';
 import { invalidateAppData, readLedgerVersion } from './data-version';
 import { cachedCollection } from './collection-cache';
 import { db } from '../firebase';
 import { getCustomers } from './customers';
 import { normalizeCustomerKey } from '../search-utils';
-import type { Item, Metadata, Sale, SalesReturn, SaleBatchAllocation } from '../types';import { docToSale, docToSalesReturn } from './utils';
+import type { Item, Metadata, Sale, SalesReturn, SaleBatchAllocation, SaleItem } from '../types';import { docToSale, docToSalesReturn } from './utils';
 import { applyBatchRestores, planBatchRestores } from './sale-batch-restore';
+import { saleReturnPriceFactor } from './sale-calculation';
 
 // --- Sales Returns Queries ---
 export async function getSalesReturns(userId: string): Promise<SalesReturn[]> {
@@ -93,7 +95,12 @@ interface SoldLineAggregate {
   allocations: SaleBatchAllocation[];
 }
 
-/** Aggregates a sale's lines per item — duplicate lines merge qty, prices and batch allocations. */
+/**
+ * Aggregates a sale's CURRENT lines per item — duplicate lines merge qty,
+ * prices and batch allocations. Caps and pricing for a return come from this,
+ * so quantities a previous sale-adjusted return already removed are naturally
+ * gone from the aggregate.
+ */
 function aggregateSaleLines(sale: Sale): Map<string, SoldLineAggregate> {
   const byItem = new Map<string, SoldLineAggregate>();
   for (const line of sale.items) {
@@ -129,6 +136,60 @@ function takeAllocationSlices(allocations: SaleBatchAllocation[], quantity: numb
   return slices;
 }
 
+/**
+ * Removes returned units from the sale's own lines: quantities shrink,
+ * batch allocations lose the same units, lines that reach zero disappear —
+ * a sale of 6 with 1 returned becomes a 5-unit sale. Returns the remaining
+ * lines and the recomputed item subtotal.
+ */
+function reduceSaleLines(
+  lines: SaleItem[],
+  returnedQtyByItem: Map<string, number>,
+  slicesByItem: Map<string, SaleBatchAllocation[]>
+): { items: SaleItem[]; subtotal: number } {
+  const remaining: SaleItem[] = [];
+  let subtotal = 0;
+  for (const line of lines) {
+    let qty = Number(line.quantity) || 0;
+    let batches = line.batches ? [...line.batches] : undefined;
+    const toTake = Math.min(qty, returnedQtyByItem.get(line.itemId) || 0);
+    if (toTake > 0) {
+      qty -= toTake;
+      const slices = slicesByItem.get(line.itemId);
+      if (batches && slices && slices.length > 0) {
+        let left = toTake;
+        batches = batches
+          .map((alloc) => {
+            const cut = Math.min(alloc.quantity, left);
+            left -= cut;
+            return { ...alloc, quantity: alloc.quantity - cut };
+          })
+          .filter((alloc) => alloc.quantity > 0);
+        if (batches.length === 0) batches = undefined;
+      }
+    }
+    if (qty <= 0) continue;
+    subtotal += (Number(line.price) || 0) * qty;
+    remaining.push({ ...line, quantity: qty, batches });
+  }
+  return { items: remaining, subtotal: Math.round(subtotal * 100) / 100 };
+}
+
+/**
+ * The sale total after a return: the goods part scales with what remains, so
+ * percentage discounts land exactly, manual overrides keep their ratio, and
+ * the result never goes negative. Extra/service sales are unaffected.
+ */
+function scaleSaleTotal(sale: Sale, subtotalNew: number): number {
+  const extra = Number(sale.extraSales) || 0;
+  const subtotalOld = Number(sale.subtotal) || 0;
+  const goodsOld = Math.max(0, (Number(sale.total) || 0) - extra);
+  if (subtotalOld <= 0) return Math.round(Math.max(0, goodsOld) * 100) / 100;
+  const goodsNew = goodsOld * (subtotalNew / subtotalOld);
+  return Math.round(Math.max(0, goodsNew + extra) * 100) / 100;
+}
+
+
 export async function addSalesReturn(
     userId: string,
     data: SalesReturnDraft
@@ -157,23 +218,30 @@ export async function addSalesReturn(
       // Sale-linked resolution happens outside the transaction (the
       // transaction query API is unavailable in this Firestore build): the
       // sale fixes customer, prices and per-line caps; prior returns set how
-      // much of each line is still returnable.
+      // much of each line is still returnable. Returns recorded after this
+      // feature started adjusting the sale document (`saleAdjusted`) are
+      // already reflected in the sale's own lines and must not count twice.
       let linkedSale: Sale | null = null;
-      let soldByItem = new Map<string, SoldLineAggregate>();
       let returnedByItem = new Map<string, number>();
-      let priorReturnPaths: string[] = [];
+      let pendingReceivablePaths: string[] = [];
       if (data.saleId) {
         const saleSnap = await getDoc(doc(salesCollection, data.saleId));
         if (!saleSnap.exists()) throw new Error('The original sale could not be found.');
         linkedSale = docToSale(saleSnap);
-        soldByItem = aggregateSaleLines(linkedSale);
         const priorSnapshot = await getDocs(query(returnsCollection, where('saleId', '==', data.saleId)));
-        priorReturnPaths = priorSnapshot.docs.map((d) => d.ref.path);
         for (const d of priorSnapshot.docs) {
+          if (d.data()?.saleAdjusted) continue;
           for (const line of docToSalesReturn(d).items) {
             returnedByItem.set(line.itemId, (returnedByItem.get(line.itemId) || 0) + (Number(line.quantity) || 0));
           }
         }
+        const receivablesSnapshot = await getDocs(query(
+          collection(userRef, 'transactions'),
+          where('saleId', '==', linkedSale.saleId),
+          where('type', '==', 'Receivable'),
+          where('status', '==', 'Pending')
+        ));
+        pendingReceivablePaths = receivablesSnapshot.docs.map((d) => d.ref.path);
       }
 
       let customerId = linkedSale ? linkedSale.customerId || '' : data.customerId || '';
@@ -189,17 +257,37 @@ export async function addSalesReturn(
       const result = await runTransaction(db, async (transaction) => {
         const customerRef = doc(customersCollection, customerId);
         const itemRefs = data.items.map(item => doc(itemsCollection, item.itemId));
+        const linkedSaleRef = data.saleId ? doc(salesCollection, data.saleId) : null;
 
-        const [metadataDoc, customerDoc, ...itemDocs] = await Promise.all([
+        // All reads before the first write (Firestore transaction rule). The
+        // sale's own lines are read inside the transaction so two racing
+        // returns can never both pass the same cap.
+        const reads = await Promise.all([
             transaction.get(metadataRef),
             transaction.get(customerRef),
+            ...(linkedSaleRef ? [transaction.get(linkedSaleRef)] : []),
             ...itemRefs.map(ref => transaction.get(ref)),
-            // Prior returns are re-read inside the transaction so two racing
-            // returns can never both pass the same cap.
-            ...priorReturnPaths.map((path) => transaction.get(doc(db!, path))),
+            ...pendingReceivablePaths.map((path) => transaction.get(doc(db!, path))),
         ]);
+        const metadataDoc = reads[0] as DocumentSnapshot;
+        const customerDoc = reads[1] as DocumentSnapshot;
+        const saleDoc = linkedSaleRef ? (reads[2] as DocumentSnapshot) : null;
+        const itemDocs = reads.slice(linkedSaleRef ? 3 : 2, (linkedSaleRef ? 3 : 2) + data.items.length) as DocumentSnapshot[];
+        const receivableDocs = reads.slice(linkedSaleRef ? 3 : 2 + data.items.length) as DocumentSnapshot[];
 
         if (!customerDoc.exists()) throw new Error(`Customer with id ${customerId} does not exist!`);
+
+        // The sale's lines as they exist right now — previous sale-adjusted
+        // returns are already subtracted, so caps and prices come from here.
+        let currentSale: Sale | null = null;
+        if (linkedSaleRef) {
+          if (!saleDoc!.exists()) throw new Error('The original sale could not be found.');
+          currentSale = docToSale(saleDoc!);
+        }
+        const soldByItem = currentSale ? aggregateSaleLines(currentSale) : new Map<string, SoldLineAggregate>();
+        // Returns are credited at what the customer actually paid per unit:
+        // a bill discounted from 100 to 80 makes a returned 20tk item worth 16.
+        const returnPriceFactor = currentSale ? saleReturnPriceFactor(currentSale) : 1;
 
         const metadata = metadataDoc.data() as Metadata;
         const lastReturnNumber = metadata?.lastReturnNumber || 0;
@@ -236,7 +324,7 @@ export async function addSalesReturn(
             if (qty > returnable) {
               throw new Error(`Only ${returnable} of "${itemState.data.title || returnItem.itemId}" can still be returned from ${linkedSale.saleId}.`);
             }
-            unitPrice = sold.price;
+            unitPrice = Math.round(sold.price * returnPriceFactor * 100) / 100;
             const slices = takeAllocationSlices(sold.allocations, qty);
             if (slices.length > 0) {
               restoreByItem.set(returnItem.itemId, [
@@ -301,6 +389,43 @@ export async function addSalesReturn(
           }
         }
 
+        // The sale itself shrinks by what was returned: 6 sold with 1
+        // returned becomes a 5-unit sale — in history, in reports and in the
+        // edit dialog. The return document stays as the audit record.
+        if (linkedSaleRef && currentSale) {
+          const returnedQtyByItem = new Map<string, number>();
+          for (const line of pricedItems) {
+            returnedQtyByItem.set(line.itemId, (returnedQtyByItem.get(line.itemId) || 0) + line.quantity);
+          }
+          const { items: remainingLines, subtotal: subtotalNew } = reduceSaleLines(
+            currentSale.items,
+            returnedQtyByItem,
+            restoreByItem
+          );
+          transaction.update(linkedSaleRef, {
+            items: remainingLines,
+            subtotal: subtotalNew,
+            total: scaleSaleTotal(currentSale, subtotalNew),
+          });
+
+          // The pending receivable follows the bill down; any value beyond
+          // what is still outstanding is covered by the balance credit below.
+          let creditLeft = totalReturnValue;
+          for (const snap of receivableDocs) {
+            if (!snap.exists() || creditLeft <= 0) continue;
+            const amount = Number(snap.data().amount) || 0;
+            if (amount <= 0) continue;
+            const cut = Math.min(amount, creditLeft);
+            const newAmount = Math.round((amount - cut) * 100) / 100;
+            creditLeft -= cut;
+            const profit = Number(snap.data().remainingProfit) || 0;
+            const newProfit = Math.round(profit * (newAmount / amount) * 100) / 100;
+            transaction.update(snap.ref, newAmount > 0
+              ? { amount: newAmount, remainingProfit: newProfit }
+              : { amount: newAmount, remainingProfit: 0, status: 'Paid', isHiddenFromHistory: true });
+          }
+        }
+
         const newReturnRef = doc(returnsCollection);
         const returnDataToSave = {
           customerId,
@@ -309,7 +434,7 @@ export async function addSalesReturn(
           totalReturnValue,
           totalReturnCost,
           restocked: restock,
-          ...(linkedSale ? { saleId: data.saleId } : {}),
+          ...(linkedSale ? { saleId: data.saleId, saleAdjusted: true } : {}),
           date: Timestamp.fromDate(new Date()),
         };
         transaction.set(newReturnRef, returnDataToSave);

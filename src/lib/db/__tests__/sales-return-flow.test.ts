@@ -203,6 +203,7 @@ describe('addSalesReturn — sale-linked returns', () => {
     expect(result.success).toBe(true);
     expect(result.salesReturn?.returnId).toBe('RTN-0001');
     expect(result.salesReturn?.saleId).toBe('saleDoc1');
+    expect(result.salesReturn?.saleAdjusted).toBe(true);
     expect(result.salesReturn?.totalReturnValue).toBe(200);
     expect(result.salesReturn?.totalReturnCost).toBe(120);
     expect(result.salesReturn?.restocked).toBe(true);
@@ -212,8 +213,103 @@ describe('addSalesReturn — sale-linked returns', () => {
     expect(item.batches[0].quantity).toBe(5);
     expect(item.batches[0].batchNo).toBe('B1');
 
-    // The sale was a ৳500 due against a ৳500 balance; the return clears it.
+    // The sale of 5 × 100 becomes a sale of 3 × 100 — history and the
+    // edit dialog show the net sale.
+    const sale = h.snapshot(salePath).data;
+    expect(sale.items).toHaveLength(1);
+    expect(sale.items[0].quantity).toBe(3);
+    expect(sale.items[0].batches[0].quantity).toBe(3);
+    expect(sale.subtotal).toBe(300);
+    expect(sale.total).toBe(300);
+
+    // The return credits the customer's account: 500 due drops to 300.
     expect(h.snapshot(customerPath).data.dueBalance).toBe(300);
+  });
+
+  it('credits returns at the discounted unit price the customer actually paid', async () => {
+    // 5 units at 100 (subtotal 500) with the bill discounted by 100 to 400:
+    // one returned unit is worth 80, not the sticker 100.
+    h.seed(salePath, {
+      saleId: 'SALE-0001',
+      customerId: 'custA',
+      items: [{ itemId: 'item1', quantity: 5, price: 100 }],
+      subtotal: 500,
+      total: 400,
+      discountType: 'amount',
+      discountValue: 100,
+      paymentMethod: 'Due',
+      extraSales: 0,
+      date: { __fakeTimestamp: '2026-10-01T10:00:00.000Z' },
+    });
+
+    const result = await addSalesReturn(USER, {
+      saleId: 'saleDoc1',
+      items: [{ itemId: 'item1', quantity: 1 }],
+      restock: true,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.salesReturn?.items[0].price).toBe(80);
+    expect(result.salesReturn?.totalReturnValue).toBe(80);
+    const sale = h.snapshot(salePath).data;
+    expect(sale.items[0].quantity).toBe(4);
+    expect(sale.subtotal).toBe(400);
+    expect(sale.total).toBe(320);
+    expect(h.snapshot(customerPath).data.dueBalance).toBe(420);
+  });
+
+  it('applies percentage discounts to return pricing the same way', async () => {
+    // 20% off 500 is 400 — identical economics to the flat-discount case.
+    h.seed(salePath, {
+      saleId: 'SALE-0001',
+      customerId: 'custA',
+      items: [{ itemId: 'item1', quantity: 5, price: 100 }],
+      subtotal: 500,
+      total: 400,
+      discountType: 'percentage',
+      discountValue: 20,
+      paymentMethod: 'Due',
+      extraSales: 0,
+      date: { __fakeTimestamp: '2026-10-01T10:00:00.000Z' },
+    });
+
+    const result = await addSalesReturn(USER, {
+      saleId: 'saleDoc1',
+      items: [{ itemId: 'item1', quantity: 2 }],
+      restock: true,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.salesReturn?.totalReturnValue).toBe(160);
+    const sale = h.snapshot(salePath).data;
+    expect(sale.items[0].quantity).toBe(3);
+    expect(sale.total).toBe(240);
+    expect(h.snapshot(customerPath).data.dueBalance).toBe(340);
+  });
+
+  it('reduces a pending receivable by the returned value', async () => {
+    h.seed(`users/${USER}/transactions/tx1`, {
+      description: 'Due from SALE-0001',
+      amount: 500,
+      status: 'Pending',
+      type: 'Receivable',
+      customerId: 'custA',
+      saleId: 'SALE-0001',
+      totalSaleProfit: 200,
+      remainingProfit: 200,
+    });
+
+    const result = await addSalesReturn(USER, {
+      saleId: 'saleDoc1',
+      items: [{ itemId: 'item1', quantity: 2 }],
+      restock: true,
+    });
+
+    expect(result.success).toBe(true);
+    const receivable = h.snapshot(`users/${USER}/transactions/tx1`).data;
+    expect(receivable.amount).toBe(300);
+    expect(receivable.remainingProfit).toBe(120);
+    expect(receivable.status).toBe('Pending');
   });
 
   it('prices returned units from the sale, not from the caller', async () => {
@@ -238,6 +334,7 @@ describe('addSalesReturn — sale-linked returns', () => {
     expect(result.error).toContain('can still be returned');
     expect(h.snapshot(itemPath).data.stock).toBe(3);
     expect(h.snapshot(customerPath).data.dueBalance).toBe(500);
+    expect(h.snapshot(salePath).data.items[0].quantity).toBe(5);
   });
 
   it('caps a second return at what the first return left', async () => {
@@ -266,7 +363,40 @@ describe('addSalesReturn — sale-linked returns', () => {
     expect(h.snapshot(itemPath).data.stock).toBe(8);
     expect(h.snapshot(itemPath).data.batches[0].quantity).toBe(8);
     expect(h.snapshot(customerPath).data.dueBalance).toBe(0);
+    // Everything returned: the sale is empty and worth nothing.
+    expect(h.snapshot(salePath).data.items).toHaveLength(0);
+    expect(h.snapshot(salePath).data.total).toBe(0);
     expect(h.returnPaths()).toHaveLength(2);
+  });
+
+  it('still caps against returns recorded before sale-adjustment existed', async () => {
+    // Legacy return doc: 1 unit already returned, sale doc never adjusted.
+    h.seed(`users/${USER}/sales_returns/legacy1`, {
+      customerId: 'custA',
+      items: [{ itemId: 'item1', quantity: 1, price: 100 }],
+      returnId: 'RTN-0001',
+      totalReturnValue: 100,
+      saleId: 'saleDoc1',
+      date: { __fakeTimestamp: '2026-10-02T10:00:00.000Z' },
+    });
+
+    const tooMuch = await addSalesReturn(USER, {
+      saleId: 'saleDoc1',
+      items: [{ itemId: 'item1', quantity: 5 }],
+      restock: true,
+    });
+    expect(tooMuch.success).toBe(false);
+    expect(tooMuch.error).toContain('Only 4');
+
+    const result = await addSalesReturn(USER, {
+      saleId: 'saleDoc1',
+      items: [{ itemId: 'item1', quantity: 4 }],
+      restock: true,
+    });
+    expect(result.success).toBe(true);
+    expect(h.snapshot(itemPath).data.stock).toBe(7);
+    // The legacy return never shrank the doc, so 5 − 4 = 1 unit remains on it.
+    expect(h.snapshot(salePath).data.items[0].quantity).toBe(1);
   });
 
   it('keeps defective goods out of stock while still crediting the customer', async () => {
@@ -281,6 +411,8 @@ describe('addSalesReturn — sale-linked returns', () => {
     const item = h.snapshot(itemPath).data;
     expect(item.stock).toBe(3);
     expect(item.batches[0].quantity).toBe(3);
+    // The sale still shrinks — the goods are gone from the customer either way.
+    expect(h.snapshot(salePath).data.items[0].quantity).toBe(3);
     expect(h.snapshot(customerPath).data.dueBalance).toBe(300);
   });
 
@@ -306,6 +438,7 @@ describe('addSalesReturn — sale-linked returns', () => {
     expect(result.success).toBe(true);
     expect(result.salesReturn?.customerId).toBe('walkin');
     expect(h.snapshot(`users/${USER}/customers/walkin`).data.dueBalance).toBe(-100);
+    expect(h.snapshot(salePath).data.items[0].quantity).toBe(4);
   });
 });
 

@@ -82,6 +82,23 @@ export function saleBillAmount(
   return 0;
 }
 
+/**
+ * The effective paid share of a sale's item prices. After a discount the
+ * customer did not pay the sticker price — 5 units at 20 discounted to a total
+ * of 80 means each unit effectively cost 16 — so a returned unit must be
+ * credited at that price, not the sticker price. Returns scale line prices by
+ * this factor; the sale document's own shrink uses the same ratio, so credits
+ * and totals always agree.
+ */
+export function saleReturnPriceFactor(
+  sale: Pick<Sale, 'subtotal' | 'total'> & Partial<Pick<Sale, 'extraSales'>>
+): number {
+  const subtotal = Number(sale.subtotal) || 0;
+  if (subtotal <= 0) return 1;
+  const goods = Math.max(0, (Number(sale.total) || 0) - (Number(sale.extraSales) || 0));
+  return goods / subtotal;
+}
+
 export interface ReceivableDraft {
   description: string;
   amount: number;

@@ -149,8 +149,13 @@ export async function getDashboardStats(userId: string, offsetMinutes?: number) 
 
     const salesThisMonth = salesSnapshot.docs.map(docToSale);
     const returnsThisMonth = returnsSnapshot.docs.map(docToSalesReturn);
+    // Sale-adjusted returns already shrank their sale documents (fewer units,
+    // lower totals), so their cost left gross profit with the sale — counting
+    // them again here would double-subtract. Only legacy returns (recorded
+    // before sale-adjustment existed) still reduce profit via returnCost.
+    const standaloneReturns = returnsThisMonth.filter((r) => !r.saleAdjusted);
     const expensesThisMonth = await getExpensesForMonth(userId, year, month, offsetMinutes);
-    const legacyCosts = await fetchLegacyItemCosts(userId, salesThisMonth, returnsThisMonth);
+    const legacyCosts = await fetchLegacyItemCosts(userId, salesThisMonth, standaloneReturns);
 
     const monthlySalesValue = salesThisMonth.reduce((sum, sale) => sum + sale.total, 0);
     const monthlySalesCount = salesThisMonth.length;
@@ -163,7 +168,7 @@ export async function getDashboardStats(userId: string, offsetMinutes?: number) 
         0
     );
 
-    const totalReturnCost = returnsThisMonth.reduce(
+    const totalReturnCost = standaloneReturns.reduce(
         (totalCost, saleReturn) => totalCost + returnCost(saleReturn, legacyCosts),
         0
     );

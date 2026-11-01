@@ -156,6 +156,13 @@ export type SalesReturn = {
   restocked?: boolean;
   /** Frozen cost of the returned units; profit reports subtract this. */
   totalReturnCost?: number;
+  /**
+   * The linked sale document was updated in place (lines, totals, receivable
+   * reduced). Profit reports must not subtract this return's cost again.
+   * Returns without the flag predate sale-adjustment and are still expected
+   * to reduce the return-cost total on their own.
+   */
+  saleAdjusted?: boolean;
 };
 
 
